@@ -4,11 +4,14 @@ import jakarta.annotation.Resource;
 import org.clf.springboot.common.Result;
 import org.clf.springboot.common.ReviewResult;
 import org.clf.springboot.config.RabbitMqConfig;
+import org.clf.springboot.dto.PictureReviewDTO;
+import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.utils.MinIOUtils;
 import org.clf.springboot.utils.TokenUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +34,8 @@ public class ReviewService{
     // 幂等性Key前缀
     private static final String IDEMPOTENT_KEY_PREFIX = "review:idempotent:";
 
+    private static final int REDIS_EXPIRE_TIME = 7;
+
     @Value("${minio.redisKey}")
     private String redisPrefix;
 
@@ -47,7 +52,7 @@ public class ReviewService{
     private TokenUtils tokenUtils;
 
     @Transactional(rollbackFor = Exception.class)
-    public Result pictureView(MultipartFile file, String requestId) {
+    public void pictureView(MultipartFile file, String requestId) {
         try {
             String originalName = file.getOriginalFilename();
             String suffix = originalName.substring(originalName.lastIndexOf(".")); // 提取后缀（如.jpg）
@@ -67,42 +72,68 @@ public class ReviewService{
             // 单张图片详情
             String imageDetailKey = redisPrefix + userId + imageId;
 
-            Map<String, Object> saveMap = new HashMap<>();
-            saveMap.put("preSignedUrl", preSignedUrl);
-            saveMap.put("objectName", objectName);
+            // 封装图片信息
+            PictureReviewDTO imageInfo = buildImageInfoMap(preSignedUrl, objectName, imageId, userId);
 
-            stringRedisTemplate.opsForHash().putAll(imageDetailKey, saveMap);
+            // 存储到redis中
+            extracted(imageDetailKey, imageId, userId, objectName, preSignedUrl);
 
+            // 图片列表存储到redis中
             stringRedisTemplate.opsForSet().add(imageListKey, imageId);
 
             //设置过期时间（7天），列表和详情键同步过期
-            stringRedisTemplate.expire(imageListKey, 7, TimeUnit.DAYS);
-            stringRedisTemplate.expire(imageDetailKey, 7, TimeUnit.DAYS);
+            stringRedisTemplate.expire(imageListKey, REDIS_EXPIRE_TIME, TimeUnit.DAYS);
+            stringRedisTemplate.expire(imageDetailKey, REDIS_EXPIRE_TIME, TimeUnit.DAYS);
+
+            LOGGER.info("图片上传成功，待审核, imageId={}, userId={}, requestId={}", imageId, userId, requestId);
+
+            // 发送业务信息待审核
+            rabbitTemplate.convertAndSend(RabbitMqConfig.BUSINESS_EXCHANGE_NAME,
+                    RabbitMqConfig.BUSINESS_ROUTING_KEY,
+                    imageInfo,
+                    new CorrelationData());
             //TODO 对接pythonYolo接口
 
-            // 这里yolo会返回一个准确值
-            Double yoloResult = 0.48;
-            try {
-                // 根据返回值设定一个阈值判断是否需要人工审核，打入死信队列中
-                if (yoloResult < 0.5) {
-                    rabbitTemplate.convertAndSend(RabbitMqConfig.DEAD_LETTER_EXCHANGE_NAME,
-                            RabbitMqConfig.DEAD_LETTER_ROUTING_KEY,
-                            saveMap);
-                }
-                rabbitTemplate.convertAndSend(RabbitMqConfig.BUSINESS_EXCHANGE_NAME, RabbitMqConfig.BUSINESS_ROUTING_KEY, saveMap);
-            } catch (AmqpException e) {
-                LOGGER.error("消息发送到业务队列失败，转发到死信队列", e);
-                rabbitTemplate.convertAndSend(
-                        RabbitMqConfig.DEAD_LETTER_EXCHANGE_NAME,
-                        RabbitMqConfig.DEAD_LETTER_ROUTING_KEY,
-                        saveMap
-                );
-            }
-
+//            // 这里yolo会返回一个准确值
+//            double yoloResult = 0.48;
+//            try {
+//                // 根据返回值设定一个阈值判断是否需要人工审核，打入死信队列中
+//                if (yoloResult < 0.5) {
+//                    rabbitTemplate.convertAndSend(RabbitMqConfig.DEAD_LETTER_EXCHANGE_NAME,
+//                            RabbitMqConfig.DEAD_LETTER_ROUTING_KEY,
+//                            saveMap);
+//                }
+//                rabbitTemplate.convertAndSend(RabbitMqConfig.BUSINESS_EXCHANGE_NAME, RabbitMqConfig.BUSINESS_ROUTING_KEY, saveMap);
+//            } catch (AmqpException e) {
+//                LOGGER.error("消息发送到业务队列失败，转发到死信队列", e);
+//                rabbitTemplate.convertAndSend(
+//                        RabbitMqConfig.DEAD_LETTER_EXCHANGE_NAME,
+//                        RabbitMqConfig.DEAD_LETTER_ROUTING_KEY,
+//                        saveMap
+//                );
+//            }
         } catch (Exception e) {
             LOGGER.error("图片审核失败", e);
-            return Result.error();
+            throw new CustomException("500", "系统异常", e);
         }
-        return Result.success();
     }
+
+    private void extracted(String imageDetailKey, String imageId, Long userId, String objectName, String preSignedUrl) {
+        stringRedisTemplate.opsForHash().put(imageDetailKey, "imageId", imageId);
+        stringRedisTemplate.opsForHash().put(imageDetailKey, "userId", userId.toString());
+        stringRedisTemplate.opsForHash().put(imageDetailKey, "objectName", objectName);
+        stringRedisTemplate.opsForHash().put(imageDetailKey, "preSignedUrl", preSignedUrl);
+        stringRedisTemplate.opsForHash().put(imageDetailKey, "status", "PENDING");
+    }
+
+    private PictureReviewDTO buildImageInfoMap(String preSignedUrl, String objectName, String imageId, Long userId) {
+        PictureReviewDTO pictureReviewDTO = new PictureReviewDTO();
+        pictureReviewDTO.setObjectName(objectName);
+        pictureReviewDTO.setUserId(userId);
+        pictureReviewDTO.setPreSignedUrl(preSignedUrl);
+        pictureReviewDTO.setImageId(imageId);
+        pictureReviewDTO.setUserId(userId);
+        return pictureReviewDTO;
+    }
+
 }

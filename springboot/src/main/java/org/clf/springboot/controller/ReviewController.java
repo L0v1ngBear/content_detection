@@ -20,7 +20,8 @@ public class ReviewController {
     @Operation(summary = "图片审核")
     @PostMapping("/picture")
     public Result reviewPicture(@RequestParam("file") MultipartFile file, @RequestHeader (value = "RequestId") String requestId) {
-        return reviewService.pictureView(file, requestId);
+        reviewService.pictureView(file, requestId);
+        return Result.success();
     }
 
 }

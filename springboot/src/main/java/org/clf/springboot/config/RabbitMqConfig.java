@@ -1,6 +1,9 @@
 package org.clf.springboot.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -10,6 +13,7 @@ import java.util.Map;
 @Configuration
 public class RabbitMqConfig {
 
+    private final Logger logger = LoggerFactory.getLogger(RabbitMqConfig.class);
     // 1. 业务队列相关
     public static final String BUSINESS_QUEUE_NAME = "picture.queue"; // 业务队列（处理图片审核的队列）
     public static final String BUSINESS_EXCHANGE_NAME = "picture.exchange"; // 业务交换机
@@ -19,6 +23,10 @@ public class RabbitMqConfig {
     public static final String DEAD_LETTER_QUEUE_NAME = "picture.dlq.queue"; // 死信队列
     public static final String DEAD_LETTER_EXCHANGE_NAME = "picture.dlq.exchange"; // 死信交换机
     public static final String DEAD_LETTER_ROUTING_KEY = "picture.dlq.routing.key"; // 死信路由键
+
+    public static final String RESULT_QUEUE_NAME = "picture.result.queue";
+    public static final String RESULT_EXCHANGE_NAME = "picture.exchange";
+    public static final String RESULT_ROUTING_KEY = "picture.routing.key";
 
     // 声明死信交换机（普通交换机即可，类型Direct）
     @Bean
@@ -67,5 +75,33 @@ public class RabbitMqConfig {
         return BindingBuilder.bind(businessQueue())
                 .to(businessExchange())
                 .with(BUSINESS_ROUTING_KEY);
+    }
+
+    @Bean
+    public Queue resultQueue() {
+        return QueueBuilder.durable(RESULT_QUEUE_NAME).build();
+    }
+
+    @Bean
+    public Binding resultBinding() {
+        return BindingBuilder.bind(businessQueue())
+                .to(businessExchange())
+                .with(RESULT_ROUTING_KEY);
+    }
+
+    @Bean
+    public DirectExchange resultExchange() {
+        return ExchangeBuilder.directExchange(RESULT_EXCHANGE_NAME).durable(true).build();
+    }
+
+    @Bean
+    public RabbitTemplate.ConfirmCallback confirmCallback() {
+        return (correlationData, ack, cause) -> {
+            if (ack) {
+                logger.info("成功送达业务队列");
+            } else {
+                logger.error("消息投送失败:" + cause);
+            }
+        };
     }
 }

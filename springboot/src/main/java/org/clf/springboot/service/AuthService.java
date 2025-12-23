@@ -3,7 +3,6 @@ package org.clf.springboot.service;
 import jakarta.annotation.Resource;
 import org.clf.springboot.dto.LoginRequestDTO;
 import org.clf.springboot.dto.LoginResponseDTO;
-import org.clf.springboot.entity.User;
 import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.loginStrategy.LoginStrategy;
 import org.clf.springboot.loginStrategy.LoginStrategyFactory;
