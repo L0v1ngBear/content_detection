@@ -1,0 +1,66 @@
+spring:
+    application:
+        name: springboot
+    servlet:
+        multipart:
+            max-file-size: 10MB
+            max-request-size: 50MB
+    datasource:
+        url: jdbc:mysql://localhost:3306/detection
+        hikari:
+            username: root
+            password: 123456
+            driver-class-name: com.mysql.cj.jdbc.Driver
+    jpa:
+        # 数据库方言（必须匹配你的数据库类型）
+        database-platform: org.hibernate.dialect.MySQL8Dialect
+        hibernate:
+            # 自动建表策略（核心配置）
+            ddl-auto: update  # 推荐：无表则建，有表则更新（不会删表）
+            # 可选值说明：
+            # create：每次启动删表重建（测试用，会丢数据）
+            # create-drop：启动建表，停止删表（测试用）
+            # validate：仅校验表结构，不建表（生产用）
+            # none：关闭自动建表（默认值！这是最常见的坑）
+        # 显示SQL（可选，便于排查建表语句是否执行）
+        show-sql: true
+        properties:
+            hibernate:
+                format_sql: true  # 格式化SQL输出
+    data:
+        redis:
+            port: 6379
+            host: localhost
+            lettuce:
+                pool:
+                    max-active: 10
+                    max-idle: 10
+                    min-idle: 1
+                    time-between-eviction-runs: 10s
+            database: 2
+    rabbitmq:
+        host: localhost  # RabbitMQ服务器地址
+        port: 5672       # 默认端口
+        username: guest  # 默认用户名
+        password: guest  # 默认密码
+        virtual-host: /
+
+minio:
+    endpoint: http://127.0.0.1:9000
+    accessKey: CLF.04
+    secretKey: chaojimali.25
+    bucketName: images-bucket
+    redisKey: "user_images:"
+mybatis-plus:
+    configuration:
+        map-underscore-to-camel-case: true # 自动驼峰转换（默认开启）
+        log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 打印SQL（调试用）
+    global-config:
+        db-config:
+            id-type: AUTO # 主键自增策略（默认，适配MySQL）
+jwt:
+    access-token:
+        expire: 7200
+    refresh-token:
+        expire: 604800
+    sign: 7Z8k9s7X8a9m6B5v4C8n7M9b3V8h7N6j8K9l2P7o8I9u5Y7t3R8e4W9q6S8d2F7g5H9j8L7p9O8i6U7y4T8f1G7h6J9k0
