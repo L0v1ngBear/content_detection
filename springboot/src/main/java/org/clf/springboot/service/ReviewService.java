@@ -87,12 +87,19 @@ public class ReviewService{
 
             LOGGER.info("图片上传成功，待审核, imageId={}, userId={}, requestId={}", imageId, userId, requestId);
 
+            CorrelationData correlationData = new CorrelationData(UUID.randomUUID().toString());
+
+            // 将生成的唯一消息id存入redis，便于检查是否重复消费
+            stringRedisTemplate.opsForValue().set(IDEMPOTENT_KEY_PREFIX + correlationData.getId(), "1");
+            stringRedisTemplate.expire(IDEMPOTENT_KEY_PREFIX + correlationData.getId(), REDIS_EXPIRE_TIME, TimeUnit.DAYS);
+
             // 发送业务信息待审核
             rabbitTemplate.convertAndSend(RabbitMqConfig.BUSINESS_EXCHANGE_NAME,
                     RabbitMqConfig.BUSINESS_ROUTING_KEY,
                     imageInfo,
-                    new CorrelationData());
-            //TODO 对接pythonYolo接口
+                    new CorrelationData(UUID.randomUUID().toString().replace("-", "")));
+
+            //TODO 实现yolo审核消费者
 
 //            // 这里yolo会返回一个准确值
 //            double yoloResult = 0.48;

@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -27,6 +29,13 @@ public class RabbitMqConfig {
     public static final String RESULT_QUEUE_NAME = "picture.result.queue";
     public static final String RESULT_EXCHANGE_NAME = "picture.exchange";
     public static final String RESULT_ROUTING_KEY = "picture.routing.key";
+
+    @Bean
+    public RabbitTemplate rabbitTemplate(org.springframework.amqp.rabbit.connection.ConnectionFactory connectionFactory) {
+        RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
+        // 全局设置默认持久化（数字2）
+        return rabbitTemplate;
+    }
 
     // 声明死信交换机（普通交换机即可，类型Direct）
     @Bean
@@ -103,5 +112,10 @@ public class RabbitMqConfig {
                 logger.error("消息投送失败:" + cause);
             }
         };
+    }
+
+    @Bean
+    public MessageConverter jackson2JsonMessageConverter() {
+        return new Jackson2JsonMessageConverter();
     }
 }

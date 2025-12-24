@@ -22,9 +22,9 @@ public class WebController {
      * @param userId
      * @return
      */
-    @GetMapping("/history/review/picture/#{userId}")
-    public Result getHistoryPicture(@PathVariable("userId") String userId) {
-        webService.getHistoryPicture(userId);
-        return Result.success();
-    }
+//    @GetMapping("/history/review/picture/#{userId}")
+//    public Result getHistoryPicture(@PathVariable("userId") String userId) {
+//        webService.getHistoryPicture(userId);
+//        return Result.success();
+//    }
 }
