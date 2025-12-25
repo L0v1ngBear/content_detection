@@ -17,6 +17,8 @@ public class PictureReviewListener {
                               Message message,
                               Channel channel,
                               @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
-
+        System.out.println("pictureReviewDTO: " + pictureReviewDTO);
+        System.out.println("deliveryTag: " + deliveryTag);
+        channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
     }
 }

@@ -39,6 +39,20 @@ spring:
                     time-between-eviction-runs: 10s
             database: 2
     rabbitmq:
+        listener:
+            simple:
+                acknowledge-mode: manual
+            direct:
+                declare: true # 确保队列/交换机/绑定由Spring Boot声明
+            template:
+                mandatory: true
+            # 高级配置：强制绑定与代码一致，删除多余绑定（Spring AMQP 3.0+支持）
+            admin:
+                declare:
+                    queues: true
+                    exchanges: true
+                    bindings: true
+                    delete-non-declared: true # 删除非代码定义的绑定/队列/交换机
         host: localhost  # RabbitMQ服务器地址
         port: 5672       # 默认端口
         username: guest  # 默认用户名
@@ -64,3 +78,9 @@ jwt:
     refresh-token:
         expire: 604800
     sign: 7Z8k9s7X8a9m6B5v4C8n7M9b3V8h7N6j8K9l2P7o8I9u5Y7t3R8e4W9q6S8d2F7g5H9j8L7p9O8i6U7y4T8f1G7h6J9k0
+
+#开启debug日志
+logging:
+    level:
+        org.springframework.amqp: DEBUG
+        com.rabbitmq: DEBUG

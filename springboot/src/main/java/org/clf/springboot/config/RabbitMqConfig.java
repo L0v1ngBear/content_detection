@@ -3,6 +3,7 @@ package org.clf.springboot.config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.*;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
@@ -27,14 +28,12 @@ public class RabbitMqConfig {
     public static final String DEAD_LETTER_ROUTING_KEY = "picture.dlq.routing.key"; // 死信路由键
 
     public static final String RESULT_QUEUE_NAME = "picture.result.queue";
-    public static final String RESULT_EXCHANGE_NAME = "picture.exchange";
-    public static final String RESULT_ROUTING_KEY = "picture.routing.key";
+    public static final String RESULT_EXCHANGE_NAME = "picture.result.exchange";
+    public static final String RESULT_ROUTING_KEY = "picture.result.routing.key";
 
     @Bean
-    public RabbitTemplate rabbitTemplate(org.springframework.amqp.rabbit.connection.ConnectionFactory connectionFactory) {
-        RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
-        // 全局设置默认持久化（数字2）
-        return rabbitTemplate;
+    public MessageConverter messageConverter() {
+        return new Jackson2JsonMessageConverter();
     }
 
     // 声明死信交换机（普通交换机即可，类型Direct）
@@ -72,7 +71,7 @@ public class RabbitMqConfig {
         // 绑定死信路由键
         args.put("x-dead-letter-routing-key", DEAD_LETTER_ROUTING_KEY);
         // 消息过期时间（可选，如10秒未处理则进入死信队列，单位：毫秒）
-        args.put("x-message-ttl", 10000);
+        args.put("x-message-ttl", 1800000);
         return QueueBuilder.durable(BUSINESS_QUEUE_NAME)
                 .withArguments(args) // 关联死信配置
                 .build();
@@ -93,8 +92,8 @@ public class RabbitMqConfig {
 
     @Bean
     public Binding resultBinding() {
-        return BindingBuilder.bind(businessQueue())
-                .to(businessExchange())
+        return BindingBuilder.bind(resultQueue())
+                .to(resultExchange())
                 .with(RESULT_ROUTING_KEY);
     }
 
@@ -114,8 +113,4 @@ public class RabbitMqConfig {
         };
     }
 
-    @Bean
-    public MessageConverter jackson2JsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
-    }
 }
