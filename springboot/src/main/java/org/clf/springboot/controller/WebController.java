@@ -3,6 +3,7 @@ package org.clf.springboot.controller;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import org.clf.springboot.common.Result;
+import org.clf.springboot.dto.HistoryPictureResDTO;
 import org.clf.springboot.service.WebService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,9 +23,9 @@ public class WebController {
      * @param userId
      * @return
      */
-//    @GetMapping("/history/review/picture/#{userId}")
-//    public Result getHistoryPicture(@PathVariable("userId") String userId) {
-//        webService.getHistoryPicture(userId);
-//        return Result.success();
-//    }
+    @GetMapping("/history/review/picture/#{userId}")
+    public Result getHistoryPicture(@PathVariable("userId") String userId) {
+        HistoryPictureResDTO resDTO = webService.getHistoryPicture(userId);
+        return Result.success(resDTO);
+    }
 }

@@ -76,13 +76,11 @@ public class ReviewService{
             PictureReviewDTO imageInfo = buildImageInfoMap(preSignedUrl, objectName, imageId, userId);
 
             // 存储到redis中
-            extracted(imageDetailKey, imageId, userId, objectName, preSignedUrl);
+            extracted(imageDetailKey, imageId, objectName, preSignedUrl);
 
-            // 图片列表存储到redis中
-            stringRedisTemplate.opsForSet().add(imageListKey, imageId);
+            // 添加图片列表图片id
+            addImageId(imageListKey, imageId);
 
-            //设置过期时间（7天），列表和详情键同步过期
-            stringRedisTemplate.expire(imageListKey, REDIS_EXPIRE_TIME, TimeUnit.DAYS);
             stringRedisTemplate.expire(imageDetailKey, REDIS_EXPIRE_TIME, TimeUnit.DAYS);
 
             LOGGER.info("图片上传成功，待审核, imageId={}, userId={}, requestId={}", imageId, userId, requestId);
@@ -125,12 +123,12 @@ public class ReviewService{
         }
     }
 
-    private void extracted(String imageDetailKey, String imageId, Long userId, String objectName, String preSignedUrl) {
+    private void extracted(String imageDetailKey, String imageId, String objectName, String preSignedUrl) {
         stringRedisTemplate.opsForHash().put(imageDetailKey, "imageId", imageId);
-        stringRedisTemplate.opsForHash().put(imageDetailKey, "userId", userId.toString());
         stringRedisTemplate.opsForHash().put(imageDetailKey, "objectName", objectName);
         stringRedisTemplate.opsForHash().put(imageDetailKey, "preSignedUrl", preSignedUrl);
         stringRedisTemplate.opsForHash().put(imageDetailKey, "status", "PENDING");
+        stringRedisTemplate.opsForHash().put(imageDetailKey, "isInValid", true);
     }
 
     private PictureReviewDTO buildImageInfoMap(String preSignedUrl, String objectName, String imageId, Long userId) {
@@ -141,6 +139,13 @@ public class ReviewService{
         pictureReviewDTO.setImageId(imageId);
         pictureReviewDTO.setUserId(userId);
         return pictureReviewDTO;
+    }
+
+    private void addImageId(String imageListKey, String imageId) {
+        // 存储图片ID，score为创建时间戳
+        stringRedisTemplate.opsForZSet().add(imageListKey, imageId, System.currentTimeMillis());
+        // 为ZSet设置一个兜底的过期时间（防止定时任务失效）
+        stringRedisTemplate.expire(imageListKey, REDIS_EXPIRE_TIME + 1, TimeUnit.DAYS);
     }
 
 }
