@@ -3,7 +3,6 @@ package org.clf.springboot.config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.*;
-import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
@@ -31,6 +30,7 @@ public class RabbitMqConfig {
     public static final String RESULT_EXCHANGE_NAME = "picture.result.exchange";
     public static final String RESULT_ROUTING_KEY = "picture.result.routing.key";
 
+    public static final String
     @Bean
     public MessageConverter messageConverter() {
         return new Jackson2JsonMessageConverter();

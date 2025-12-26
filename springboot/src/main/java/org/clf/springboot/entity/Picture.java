@@ -9,6 +9,5 @@ public class Picture {
     private String imageId;
     private String ObjectName;
     private String preSignedUrl;
-    private boolean isInValid;
     private String status;
 }

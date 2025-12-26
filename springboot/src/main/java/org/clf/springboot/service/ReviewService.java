@@ -7,6 +7,7 @@ import org.clf.springboot.config.RabbitMqConfig;
 import org.clf.springboot.dto.PictureReviewDTO;
 import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.utils.MinIOUtils;
+import org.clf.springboot.utils.RedisUtils;
 import org.clf.springboot.utils.TokenUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,8 @@ public class ReviewService{
 
     private static final int REDIS_EXPIRE_TIME = 7;
 
+    // redis自增序列key
+    private static final String IMAGE_ID_SEQ_KEY = "image_info:id:seq";
     @Value("${minio.redisKey}")
     private String redisPrefix;
 
@@ -50,6 +53,9 @@ public class ReviewService{
 
     @Resource
     private TokenUtils tokenUtils;
+
+    @Resource
+    private RedisUtils redisUtils;
 
     @Transactional(rollbackFor = Exception.class)
     public void pictureView(MultipartFile file, String requestId) {
@@ -77,6 +83,9 @@ public class ReviewService{
 
             // 存储到redis中
             extracted(imageDetailKey, imageId, objectName, preSignedUrl);
+
+            // 消息队列将图片入库
+
 
             // 添加图片列表图片id
             addImageId(imageListKey, imageId);
@@ -124,11 +133,11 @@ public class ReviewService{
     }
 
     private void extracted(String imageDetailKey, String imageId, String objectName, String preSignedUrl) {
+        stringRedisTemplate.opsForHash().put(imageDetailKey, "id", redisUtils.getId(IMAGE_ID_SEQ_KEY));
         stringRedisTemplate.opsForHash().put(imageDetailKey, "imageId", imageId);
         stringRedisTemplate.opsForHash().put(imageDetailKey, "objectName", objectName);
         stringRedisTemplate.opsForHash().put(imageDetailKey, "preSignedUrl", preSignedUrl);
         stringRedisTemplate.opsForHash().put(imageDetailKey, "status", "PENDING");
-        stringRedisTemplate.opsForHash().put(imageDetailKey, "isInValid", true);
     }
 
     private PictureReviewDTO buildImageInfoMap(String preSignedUrl, String objectName, String imageId, Long userId) {
@@ -137,7 +146,6 @@ public class ReviewService{
         pictureReviewDTO.setUserId(userId);
         pictureReviewDTO.setPreSignedUrl(preSignedUrl);
         pictureReviewDTO.setImageId(imageId);
-        pictureReviewDTO.setUserId(userId);
         return pictureReviewDTO;
     }
 

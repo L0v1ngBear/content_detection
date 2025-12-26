@@ -41,6 +41,11 @@ public class WebService {
 
     private Picture buildPicture(String redisKey) {
         Picture picture = new Picture();
+        picture.setId(String.valueOf(stringRedisTemplate.opsForValue().get("id")));
         picture.setObjectName(String.valueOf(stringRedisTemplate.opsForHash().get(redisKey,  "objectName")));
+        picture.setStatus(String.valueOf(stringRedisTemplate.opsForHash().get(redisKey,  "status")));
+        picture.setPreSignedUrl(String.valueOf(stringRedisTemplate.opsForHash().get(redisKey,  "preSignedUrl")));
+        picture.setImageId(String.valueOf(stringRedisTemplate.opsForHash().get(redisKey,  "imageId")));
+        return picture;
     }
 }
