@@ -89,7 +89,8 @@ public class ReviewService{
 
             // 存储到redis中
             extracted(imageDetailKey, imageId, objectName, preSignedUrl);
-            // TODO 消息队列将图片入库
+
+            // 发送到消息队列，存入mysql
             rabbitTemplate.convertAndSend(RabbitMqConfig.MYSQL_EXCHANGE_NAME,
                     RabbitMqConfig.MYSQL_ROUTING_KEY,
                     imageInfo,
@@ -108,7 +109,7 @@ public class ReviewService{
             stringRedisTemplate.opsForValue().set(IDEMPOTENT_KEY_PREFIX + correlationData.getId(), "1");
             stringRedisTemplate.expire(IDEMPOTENT_KEY_PREFIX + correlationData.getId(), REDIS_EXPIRE_TIME, TimeUnit.DAYS);
 
-            // 发送业务信息待审核
+            // 发送业务信息待审核, tobusiness消费队列
             rabbitTemplate.convertAndSend(RabbitMqConfig.BUSINESS_EXCHANGE_NAME,
                     RabbitMqConfig.BUSINESS_ROUTING_KEY,
                     imageInfo,

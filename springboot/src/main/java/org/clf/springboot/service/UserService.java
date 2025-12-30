@@ -29,21 +29,6 @@ public class UserService {
     @Resource
     private TokenUtils tokenUtils;
 
-//    public String login(String username, String password) {
-//        //TODO 后续会实现手机号注册和微信登录
-//        User userList = userMapper.selectByUsername(username);
-//        if (userList == null) {
-//            return null;
-//        }
-//        User user = new User();
-//        BeanUtils.copyProperties(userList, user);
-//        boolean passWordMatch = BCrypt.checkpw(password, userList.getPassword());
-//        if (!passWordMatch) {
-//            return null;
-//        }
-//        return tokenUtils.createToken(user);
-//    }
-
     public void register(Account account) {
         User user = new User();
         BeanUtils.copyProperties(account, user);

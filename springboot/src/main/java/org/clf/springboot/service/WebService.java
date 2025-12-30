@@ -47,7 +47,7 @@ public class WebService {
         Picture picture = new Picture();
 
         picture.setId((Long) hashEntries.get("id"));
-        picture.setUpdateTime((Long) hashEntries.get("uploadTime"));
+        picture.setUploadTime((Long) hashEntries.get("uploadTime"));
 
         picture.setObjectName((String) hashEntries.get("objectName"));
         picture.setStatus((String) hashEntries.get("status"));
