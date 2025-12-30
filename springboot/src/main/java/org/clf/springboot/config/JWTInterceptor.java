@@ -50,7 +50,7 @@ public class JWTInterceptor implements HandlerInterceptor {
             logger.error("accessToken错误");
             throw new CustomException(ResultCodeEnum.TOKEN_INVALID_ERROR);
         }
-        Account account = new Account();
+        Account account;
         accessToken = accessToken.replace(Constants.TOKEN_PREFIX, "");
         try {
             String userId =JWT.decode(accessToken).getAudience().getFirst();

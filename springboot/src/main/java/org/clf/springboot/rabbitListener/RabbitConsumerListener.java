@@ -32,7 +32,7 @@ public class RabbitConsumerListener {
     public void saveMysql(Message message,
                           Channel channel,
                           @Header(AmqpHeaders.DELIVERY_TAG) long deliverTag) throws IOException {
-        logger.info(message.getMessageProperties().toString());
-
+        logger.info("message{}", message.getMessageProperties().toString());
+        channel.basicAck(deliverTag, false);
     }
 }

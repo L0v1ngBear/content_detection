@@ -61,6 +61,9 @@ public class ReviewService{
     @Transactional(rollbackFor = Exception.class)
     public void pictureView(MultipartFile file) {
         try {
+            if (file.isEmpty()) {
+                throw new CustomException("401", "图片不存在");
+            }
             String originalName = file.getOriginalFilename();
             String suffix = originalName.substring(originalName.lastIndexOf(".")); // 提取后缀（如.jpg）
             String objectName = "user/upload/" + UUID.randomUUID().toString().replace("-", "") + suffix;
@@ -87,7 +90,7 @@ public class ReviewService{
 
             // TODO 消息队列将图片入库
             rabbitTemplate.convertAndSend(RabbitMqConfig.MYSQL_EXCHANGE_NAME,
-                    RabbitMqConfig.BUSINESS_ROUTING_KEY,
+                    RabbitMqConfig.MYSQL_ROUTING_KEY,
                     imageInfo,
                     new CorrelationData(UUID.randomUUID().toString()));
 
@@ -137,7 +140,7 @@ public class ReviewService{
     }
 
     private void extracted(String imageDetailKey, String imageId, String objectName, String preSignedUrl) {
-        stringRedisTemplate.opsForHash().put(imageDetailKey, "id", redisUtils.getId(IMAGE_ID_SEQ_KEY));
+        stringRedisTemplate.opsForHash().put(imageDetailKey, "id", String.valueOf(redisUtils.getId(IMAGE_ID_SEQ_KEY)));
         stringRedisTemplate.opsForHash().put(imageDetailKey, "imageId", imageId);
         stringRedisTemplate.opsForHash().put(imageDetailKey, "objectName", objectName);
         stringRedisTemplate.opsForHash().put(imageDetailKey, "preSignedUrl", preSignedUrl);
