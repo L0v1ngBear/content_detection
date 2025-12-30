@@ -23,7 +23,7 @@ public class WebController {
      * @param userId
      * @return
      */
-    @GetMapping("/history/review/picture/#{userId}")
+    @GetMapping("/history/review/picture/{userId}")
     public Result getHistoryPicture(@PathVariable("userId") String userId) {
         HistoryPictureResDTO resDTO = webService.getHistoryPicture(userId);
         return Result.success(resDTO);

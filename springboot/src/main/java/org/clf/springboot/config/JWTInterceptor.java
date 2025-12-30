@@ -11,9 +11,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.clf.springboot.common.Constants;
 import org.clf.springboot.common.enums.ResultCodeEnum;
 import org.clf.springboot.entity.Account;
+import org.clf.springboot.entity.User;
 import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.mapper.AdminMapper;
 import org.clf.springboot.mapper.UserMapper;
+import org.clf.springboot.utils.UserContextHolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -23,6 +28,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
  */
 @Component
 public class JWTInterceptor implements HandlerInterceptor {
+
+    private static final Logger logger = LoggerFactory.getLogger(JWTInterceptor.class);
 
     @Value("${jwt.sign}")
     private String sign;
@@ -39,7 +46,8 @@ public class JWTInterceptor implements HandlerInterceptor {
             request.getParameter(Constants.TOKEN);
         }
         // 2. 开始执行认证
-        if (ObjectUtil.isNull(accessToken) || !accessToken.startsWith("Bearer ")) {
+        if (ObjectUtil.isNull(accessToken) || !accessToken.startsWith(Constants.TOKEN_PREFIX)) {
+            logger.error("accessToken错误");
             throw new CustomException(ResultCodeEnum.TOKEN_INVALID_ERROR);
         }
         Account account = new Account();
@@ -48,6 +56,7 @@ public class JWTInterceptor implements HandlerInterceptor {
             String userId =JWT.decode(accessToken).getAudience().getFirst();
             account = userMapper.selectById(Long.valueOf(userId));
         } catch (Exception e) {
+            logger.error("token校验未通过");
             throw new CustomException(ResultCodeEnum.TOKEN_CHECK_ERROR);
         }
 
@@ -62,7 +71,14 @@ public class JWTInterceptor implements HandlerInterceptor {
             // 用户不存在
             throw new CustomException(ResultCodeEnum.TOKEN_CHECK_ERROR);
         }
-        request.setAttribute("userId", account.getId());
+        User user = new User();
+        BeanUtils.copyProperties(account, user);
+        UserContextHolder.setUser(user);
         return true;
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+        UserContextHolder.removeUser();
     }
 }

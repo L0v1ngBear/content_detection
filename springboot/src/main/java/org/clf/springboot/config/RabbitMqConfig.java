@@ -30,7 +30,10 @@ public class RabbitMqConfig {
     public static final String RESULT_EXCHANGE_NAME = "picture.result.exchange";
     public static final String RESULT_ROUTING_KEY = "picture.result.routing.key";
 
-    public static final String
+    public static final String MYSQL_QUEUE_NAME = "mysql.queue";
+    public static final String MYSQL_EXCHANGE_NAME = "mysql.exchange";
+    public static final String MYSQL_ROUTING_KEY = "mysql.routing.key";
+
     @Bean
     public MessageConverter messageConverter() {
         return new Jackson2JsonMessageConverter();
@@ -100,6 +103,21 @@ public class RabbitMqConfig {
     @Bean
     public DirectExchange resultExchange() {
         return ExchangeBuilder.directExchange(RESULT_EXCHANGE_NAME).durable(true).build();
+    }
+
+    @Bean
+    public Queue mysqlQueue() { return QueueBuilder.durable(MYSQL_QUEUE_NAME).build(); }
+
+    @Bean
+    public Binding mysqlBinding() {
+        return BindingBuilder.bind(mysqlQueue())
+                .to(mysqlExchange())
+                .with(MYSQL_ROUTING_KEY);
+    }
+
+    @Bean
+    public DirectExchange mysqlExchange() {
+        return ExchangeBuilder.directExchange(MYSQL_EXCHANGE_NAME).durable(true).build();
     }
 
     @Bean

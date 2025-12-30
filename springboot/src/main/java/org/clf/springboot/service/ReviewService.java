@@ -9,6 +9,7 @@ import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.utils.MinIOUtils;
 import org.clf.springboot.utils.RedisUtils;
 import org.clf.springboot.utils.TokenUtils;
+import org.clf.springboot.utils.UserContextHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.AmqpException;
@@ -58,7 +59,7 @@ public class ReviewService{
     private RedisUtils redisUtils;
 
     @Transactional(rollbackFor = Exception.class)
-    public void pictureView(MultipartFile file, String requestId) {
+    public void pictureView(MultipartFile file) {
         try {
             String originalName = file.getOriginalFilename();
             String suffix = originalName.substring(originalName.lastIndexOf(".")); // 提取后缀（如.jpg）
@@ -68,7 +69,7 @@ public class ReviewService{
             String preSignedUrl = minIOUtils.getPresignedUrl(objectName);
 
             // 获取当前登录用户id
-            Long userId = tokenUtils.getCurrentUserId();
+            Long userId = UserContextHolder.getUserId();
 
             // 生成图片id
             String imageId = UUID.randomUUID().toString().replace("-", "");
@@ -84,15 +85,18 @@ public class ReviewService{
             // 存储到redis中
             extracted(imageDetailKey, imageId, objectName, preSignedUrl);
 
-            // 消息队列将图片入库
-
+            // TODO 消息队列将图片入库
+            rabbitTemplate.convertAndSend(RabbitMqConfig.MYSQL_EXCHANGE_NAME,
+                    RabbitMqConfig.BUSINESS_ROUTING_KEY,
+                    imageInfo,
+                    new CorrelationData(UUID.randomUUID().toString()));
 
             // 添加图片列表图片id
             addImageId(imageListKey, imageId);
 
             stringRedisTemplate.expire(imageDetailKey, REDIS_EXPIRE_TIME, TimeUnit.DAYS);
 
-            LOGGER.info("图片上传成功，待审核, imageId={}, userId={}, requestId={}", imageId, userId, requestId);
+            LOGGER.info("图片上传成功，待审核, imageId={}, userId={}", imageId, userId);
 
             CorrelationData correlationData = new CorrelationData(UUID.randomUUID().toString());
 

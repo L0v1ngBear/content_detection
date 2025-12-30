@@ -67,16 +67,11 @@ public class TokenUtils {
         return JWT.create()
                 .withAudience(String.valueOf(userId))
                 .withIssuedAt(new Date())
-                .withExpiresAt(DateUtil.offsetDay(new Date(), expireSeconds / 86400))
+                .withExpiresAt(new Date(System.currentTimeMillis() + expireSeconds * 1000))
                 .sign(Algorithm.HMAC256(sign));
 
     }
 
-    public Long getCurrentUserId() {
-        HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
-        String token = request.getHeader(Constants.TOKEN);
-        return Long.valueOf(JWT.decode(token).getAudience().getFirst());
-    }
 
     public List<String> refreshAccessToken(String refreshToken) {
         String userId = stringRedisTemplate.opsForValue().get(REFRESH_TOKEN + refreshToken);
