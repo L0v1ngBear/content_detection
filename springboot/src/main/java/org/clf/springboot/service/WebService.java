@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -40,12 +41,20 @@ public class WebService {
     }
 
     private Picture buildPicture(String redisKey) {
+
+        Map<Object, Object> hashEntries = stringRedisTemplate.opsForHash().entries(redisKey);
+
         Picture picture = new Picture();
-        picture.setId(String.valueOf(stringRedisTemplate.opsForValue().get("id")));
-        picture.setObjectName(String.valueOf(stringRedisTemplate.opsForHash().get(redisKey,  "objectName")));
-        picture.setStatus(String.valueOf(stringRedisTemplate.opsForHash().get(redisKey,  "status")));
-        picture.setPreSignedUrl(String.valueOf(stringRedisTemplate.opsForHash().get(redisKey,  "preSignedUrl")));
-        picture.setImageId(String.valueOf(stringRedisTemplate.opsForHash().get(redisKey,  "imageId")));
+
+        picture.setId((Long) hashEntries.get("id"));
+        picture.setUpdateTime((Long) hashEntries.get("uploadTime"));
+
+        picture.setObjectName((String) hashEntries.get("objectName"));
+        picture.setStatus((String) hashEntries.get("status"));
+        picture.setPreSignedUrl((String) hashEntries.get("preSignedUrl"));
+        picture.setImageId((String) hashEntries.get("imageId"));
+
+        picture.setYoloScore((Double) hashEntries.get("yoloScore"));
         return picture;
     }
 }

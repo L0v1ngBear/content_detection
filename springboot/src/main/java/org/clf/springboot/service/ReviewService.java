@@ -5,6 +5,7 @@ import org.clf.springboot.common.Result;
 import org.clf.springboot.common.ReviewResult;
 import org.clf.springboot.config.RabbitMqConfig;
 import org.clf.springboot.dto.PictureReviewDTO;
+import org.clf.springboot.entity.Picture;
 import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.utils.MinIOUtils;
 import org.clf.springboot.utils.RedisUtils;
@@ -15,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -87,7 +89,6 @@ public class ReviewService{
 
             // 存储到redis中
             extracted(imageDetailKey, imageId, objectName, preSignedUrl);
-
             // TODO 消息队列将图片入库
             rabbitTemplate.convertAndSend(RabbitMqConfig.MYSQL_EXCHANGE_NAME,
                     RabbitMqConfig.MYSQL_ROUTING_KEY,
@@ -140,11 +141,18 @@ public class ReviewService{
     }
 
     private void extracted(String imageDetailKey, String imageId, String objectName, String preSignedUrl) {
-        stringRedisTemplate.opsForHash().put(imageDetailKey, "id", String.valueOf(redisUtils.getId(IMAGE_ID_SEQ_KEY)));
-        stringRedisTemplate.opsForHash().put(imageDetailKey, "imageId", imageId);
-        stringRedisTemplate.opsForHash().put(imageDetailKey, "objectName", objectName);
-        stringRedisTemplate.opsForHash().put(imageDetailKey, "preSignedUrl", preSignedUrl);
-        stringRedisTemplate.opsForHash().put(imageDetailKey, "status", "PENDING");
+
+        // 避免扩容开销
+        Map<String, String> hashFields = new HashMap<>(8);
+
+        hashFields.put("id", String.valueOf(redisUtils.getId(IMAGE_ID_SEQ_KEY)));
+        hashFields.put("imageId", imageId);
+        hashFields.put("objectName", objectName);
+        hashFields.put("preSignedUrl", preSignedUrl);
+        hashFields.put("status", "PENDING");
+        hashFields.put("uploadTime", String.valueOf(System.currentTimeMillis()));
+
+        stringRedisTemplate.opsForHash().putAll(imageDetailKey, hashFields);
     }
 
     private PictureReviewDTO buildImageInfoMap(String preSignedUrl, String objectName, String imageId, Long userId) {
