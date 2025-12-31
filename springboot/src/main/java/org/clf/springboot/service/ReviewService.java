@@ -115,8 +115,6 @@ public class ReviewService{
                     imageInfo,
                     new CorrelationData(UUID.randomUUID().toString().replace("-", "")));
 
-            //TODO 实现yolo审核消费者
-
 //            // 这里yolo会返回一个准确值
 //            double yoloResult = 0.48;
 //            try {
@@ -141,6 +139,7 @@ public class ReviewService{
         }
     }
 
+    // 存入redis中
     private void extracted(String imageDetailKey, String imageId, String objectName, String preSignedUrl) {
 
         // 避免扩容开销
@@ -162,6 +161,8 @@ public class ReviewService{
         pictureReviewDTO.setUserId(userId);
         pictureReviewDTO.setPreSignedUrl(preSignedUrl);
         pictureReviewDTO.setImageId(imageId);
+        pictureReviewDTO.setStatus("PENDING");
+        pictureReviewDTO.setUploadTime(System.currentTimeMillis());
         return pictureReviewDTO;
     }
 

@@ -51,7 +51,6 @@ public class WebService {
 
         picture.setObjectName((String) hashEntries.get("objectName"));
         picture.setStatus((String) hashEntries.get("status"));
-        picture.setPreSignedUrl((String) hashEntries.get("preSignedUrl"));
         picture.setImageId((String) hashEntries.get("imageId"));
 
         picture.setYoloScore((Double) hashEntries.get("yoloScore"));

@@ -39,6 +39,7 @@ spring:
                     time-between-eviction-runs: 10s
             database: 2
     rabbitmq:
+        retry_count: 3
         listener:
             simple:
                 acknowledge-mode: manual
