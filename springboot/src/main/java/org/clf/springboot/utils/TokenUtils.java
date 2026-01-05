@@ -72,7 +72,6 @@ public class TokenUtils {
 
     }
 
-
     public List<String> refreshAccessToken(String refreshToken) {
         String userId = stringRedisTemplate.opsForValue().get(REFRESH_TOKEN + refreshToken);
         if (userId == null) {

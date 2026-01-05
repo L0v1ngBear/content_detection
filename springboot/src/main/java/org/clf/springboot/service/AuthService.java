@@ -25,7 +25,8 @@ public class AuthService {
 
     @Resource
     private UserMapper userMapper;
-    @Autowired
+
+    @Resource
     private StringRedisTemplate stringRedisTemplate;
 
     public LoginResponseDTO login(LoginRequestDTO loginRequestDTO) {
@@ -63,8 +64,8 @@ public class AuthService {
 
         LoginResponseDTO loginResponseDTO = new LoginResponseDTO();
 
-        loginResponseDTO.setAccessToken(res.getFirst());
-        loginResponseDTO.setRefreshToken(res.getLast());
+        loginResponseDTO.setAccessToken(res.get(0));
+        loginResponseDTO.setRefreshToken(res.get(1));
         loginResponseDTO.setExpireTime(7200L);
 
         return loginResponseDTO;

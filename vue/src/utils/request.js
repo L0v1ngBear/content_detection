@@ -1,0 +1,72 @@
+import axios from "axios";
+import {ElMessage} from "element-plus";
+import router from "../router/index.js";
+
+const request = axios.create({
+    baseURL: 'http://localhost:8080',
+    timeout: 30000  // 后台接口超时时间
+})
+
+// request 拦截器
+// 可以自请求发送前对请求做一些处理
+axios.interceptors.request.use(
+    (config) => {
+        const tokenExpireTimestamp = localStorage.getItem("tokenExpireTimestamp");
+        const accessToken = localStorage.getItem("accessToken");
+        const refreshToken = localStorage.getItem("refreshToken");
+
+        if (accessToken) {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+        }
+
+        // 若 Token 已过期且存在刷新 Token
+        if (tokenExpireTimestamp && Date.now() > tokenExpireTimestamp && refreshToken) {
+            // 调用后端刷新 Token 接口（示例）
+            return axios.post('/auth/refreshToken', { refreshToken })
+                .then(res => {
+                    const { newAccessToken } = res.data;
+                    // 存储新的 Access Token
+                    localStorage.setItem("accessToken", newAccessToken);
+                    // 更新请求头中的 Authorization
+                    config.headers['Authorization'] = `Bearer ${newAccessToken}`;
+                    return config;
+                });
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
+// response 拦截器
+// 可以在接口响应后统一处理结果
+request.interceptors.response.use(
+    response => {
+        let res = response.data;
+        // 如果是返回的文件
+        if (response.config.responseType === 'blob') {
+            return res
+        }
+        // 当权限验证不通过的时候给出提示
+        if (res.code === '401') {
+            ElMessage.error(res.msg)
+            router.push('/login')
+        }
+        // 兼容服务端返回的字符串数据
+        if (typeof res === 'string') {
+            res = res ? JSON.parse(res) : res
+        }
+        return res;
+    },
+    error => {
+        if (error.response?.status === 404) {
+            ElMessage.error('未找到请求接口')
+        } else if (error.response?.status === 500) {
+            ElMessage.error('系统异常，请查看后端控制台报错')
+        } else {
+            console.error(error.message)
+        }
+        return Promise.reject(error)
+    }
+)
+
+export default request
