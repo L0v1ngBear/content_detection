@@ -42,6 +42,9 @@ public class ReviewService{
 
     // redis自增序列key
     private static final String IMAGE_ID_SEQ_KEY = "image_info:id:seq";
+
+    private static final String NOW_COUNT = "now_count";
+
     @Value("${minio.redisKey}")
     private String redisPrefix;
 
@@ -114,6 +117,9 @@ public class ReviewService{
                     RabbitMqConfig.BUSINESS_ROUTING_KEY,
                     imageInfo,
                     new CorrelationData(UUID.randomUUID().toString().replace("-", "")));
+
+            // 实时检测数量加1
+            stringRedisTemplate.opsForValue().increment(NOW_COUNT);
 
 //            // 这里yolo会返回一个准确值
 //            double yoloResult = 0.48;

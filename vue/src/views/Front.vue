@@ -144,11 +144,6 @@ const navMenus = ref([
     iconPath: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z" // 首页图标
   },
   {
-    path: "/front/text-detect", // 文本检测路由
-    name: "文本AI检测",
-    iconPath: "M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z" // 文本图标
-  },
-  {
     path: "/front/picture", // 图片检测路由
     name: "图片AI检测",
     iconPath: "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" // 图片图标
@@ -253,7 +248,7 @@ const markAllAsRead = async () => {
   if (unreadMsgCount.value === 0) return;
   try {
     await request({
-      url: "/api/msg/mark-all-read",
+      url: "/api/msg/all-read",
       method: "post"
     });
     // 前端更新状态

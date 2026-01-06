@@ -135,7 +135,7 @@ export default {
         formData.append('file', imageFile.value);
 
         const response = await request({
-          url: '/api/ai/detect/image',
+          url: '/review/picture',
           method: 'post',
           data: formData,
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -168,7 +168,7 @@ export default {
         historyDialogVisible.value = true;
         historyLoading.value = true;
         const response = await request({
-          url: '/api/ai/detect/history',
+          url: '/api/history/review/picture',
           method: 'get',
           timeout: 10000
         });

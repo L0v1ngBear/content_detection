@@ -17,4 +17,8 @@ public class UserContextHolder {
     public static void removeUser() {
         USER.remove();
     }
+
+    public static User getUser() {
+        return USER.get();
+    }
 }
