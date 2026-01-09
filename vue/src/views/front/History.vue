@@ -18,11 +18,12 @@ export default {
       total: 0, // 总记录数
       totalPages: 0 // 总页数
     });
-    // 筛选参数（可选，增强实用性）
+    // 筛选参数（新增detectType：all/all, image/图片, video/视频）
     const filterForm = reactive({
       startTime: '',
       endTime: '',
-      status: '' // all: 全部, pass: 合规, fail: 违规
+      status: '', // all: 全部, pass: 合规, fail: 违规
+      detectType: '' // all: 全部, image: 图片, video: 视频
     });
 
     // 2. 核心方法：获取历史记录列表（支持分页+筛选）
@@ -38,7 +39,8 @@ export default {
           pageSize: pagination.pageSize,
           startTime: filterForm.startTime,
           endTime: filterForm.endTime,
-          status: filterForm.status
+          status: filterForm.status,
+          detectType: filterForm.detectType // 新增检测类型筛选
         };
 
         // 调用后端历史记录接口（适配分页的接口）
@@ -91,11 +93,12 @@ export default {
       getHistoryList();
     };
 
-    // 4. 筛选重置方法（可选）
+    // 4. 筛选重置方法（新增detectType重置）
     const handleResetFilter = () => {
       filterForm.startTime = '';
       filterForm.endTime = '';
       filterForm.status = '';
+      filterForm.detectType = ''; // 重置检测类型
       pagination.pageNum = 1; // 重置页码为第一页
       getHistoryList();
     };
@@ -126,11 +129,11 @@ export default {
   <div class="history-container">
     <!-- 页面标题 -->
     <div class="history-page-title">
-      <h2>图片检测历史记录</h2>
-      <p>查看所有图片的AI检测记录，支持分页与筛选</p>
+      <h2>内容检测历史记录</h2>
+      <p>查看所有图片/视频的AI检测记录，支持分页与筛选</p>
     </div>
 
-    <!-- 筛选区域（可选，增强实用性） -->
+    <!-- 筛选区域（新增检测类型筛选） -->
     <div class="history-filter-box">
       <div class="filter-item">
         <label>检测时间：</label>
@@ -147,6 +150,15 @@ export default {
             class="filter-input"
             placeholder="结束时间"
         />
+      </div>
+
+      <div class="filter-item">
+        <label>检测类型：</label>
+        <select v-model="filterForm.detectType" class="filter-select">
+          <option value="">全部类型</option>
+          <option value="image">图片检测</option>
+          <option value="video">视频检测</option>
+        </select>
       </div>
 
       <div class="filter-item">
@@ -177,17 +189,18 @@ export default {
         <svg class="empty-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
           <path fill="#c0c4cc" d="M864 160H160c-17.7 0-32 14.3-32 32v736c0 17.7 14.3 32 32 32h704c17.7 0 32-14.3 32-32V192c0-17.7-14.3-32-32-32zM640 736c0 4.4-3.6 8-8 8H416c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h216c4.4 0 8 3.6 8 8v48zm0-160c0 4.4-3.6 8-8 8H416c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h216c4.4 0 8 3.6 8 8v48zm0-160c0 4.4-3.6 8-8 8H416c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h216c4.4 0 8 3.6 8 8v48zm192-304H224v-64h608v64z"></path>
         </svg>
-        <p class="empty-text">暂无图片检测历史记录</p>
+        <p class="empty-text">暂无{{ filterForm.detectType === 'image' ? '图片' : filterForm.detectType === 'video' ? '视频' : '内容' }}检测历史记录</p>
       </div>
 
       <!-- 列表数据 -->
       <div class="history-list" v-else>
-        <!-- 列表表头 -->
+        <!-- 列表表头（新增检测类型列） -->
         <div class="history-list-header">
           <div class="list-col col-time">检测时间</div>
-          <div class="list-col col-name">图片名称</div>
+          <div class="list-col col-type-item">检测类型</div> <!-- 新增 -->
+          <div class="list-col col-name">文件名称</div>
           <div class="list-col col-status">检测状态</div>
-          <div class="list-col col-type">违规类型</div>
+          <div class="list-col col-violation-type">违规类型</div>
           <div class="list-col col-score">置信度分数</div>
         </div>
 
@@ -195,13 +208,19 @@ export default {
         <div class="history-list-body">
           <div class="history-list-item" v-for="(item, index) in historyList" :key="index">
             <div class="list-col col-time">{{ item.detectTime || '未知时间' }}</div>
-            <div class="list-col col-name">{{ item.fileName || '未命名图片' }}</div>
+            <!-- 新增检测类型列 -->
+            <div class="list-col col-type-item">
+              <span class="type-tag" :class="item.detectType === 'image' ? 'tag-image' : 'tag-video'">
+                {{ item.detectType === 'image' ? '图片' : item.detectType === 'video' ? '视频' : '未知' }}
+              </span>
+            </div>
+            <div class="list-col col-name">{{ item.fileName || '未命名文件' }}</div>
             <div class="list-col col-status">
               <span class="status-tag" :class="item.isPass ? 'tag-pass' : 'tag-fail'">
                 {{ item.isPass ? '检测合规' : '检测违规' }}
               </span>
             </div>
-            <div class="list-col col-type">
+            <div class="list-col col-violation-type">
               {{ item.isPass ? '—' : (item.violationType || '未知违规类型') }}
             </div>
             <div class="list-col col-score">{{ item.violationScore || 0 }}/100</div>
@@ -230,7 +249,7 @@ export default {
 /* 全局容器样式 */
 .history-container {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px; /* 加宽容器适配新增列 */
   margin: 0 auto;
   padding: 40px 20px;
   box-sizing: border-box;
@@ -447,8 +466,13 @@ export default {
   font-size: 14px;
 }
 
+/* 调整列宽适配新增的检测类型列 */
 .col-time {
   flex: 2;
+}
+
+.col-type-item { /* 新增检测类型列 */
+  flex: 1.5;
 }
 
 .col-name {
@@ -463,12 +487,30 @@ export default {
   flex: 2;
 }
 
-.col-type {
+.col-violation-type { /* 重命名避免冲突 */
   flex: 3;
 }
 
 .col-score {
   flex: 2;
+}
+
+/* 检测类型标签（新增） */
+.type-tag {
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tag-image {
+  background-color: #e8f4f8;
+  color: #4299e1;
+}
+
+.tag-video {
+  background-color: #fdf2f8;
+  color: #9f7aea;
 }
 
 /* 状态标签 */
@@ -525,7 +567,21 @@ export default {
   color: #4e5d78;
 }
 
-/* 响应式适配 */
+/* 响应式适配（适配新增列） */
+@media (max-width: 1024px) {
+  .history-container {
+    max-width: 100%;
+  }
+
+  .col-type-item {
+    flex: 1.2;
+  }
+
+  .col-name, .col-violation-type {
+    flex: 2.5;
+  }
+}
+
 @media (max-width: 768px) {
   .history-filter-box {
     flex-direction: column;
@@ -543,7 +599,11 @@ export default {
     font-size: 12px;
   }
 
-  .col-name, .col-type {
+  .col-type-item {
+    flex: 1;
+  }
+
+  .col-name, .col-violation-type {
     flex: 2;
   }
 
@@ -576,6 +636,8 @@ export default {
     padding: 4px 0;
     text-align: left;
     width: 100%;
+    display: flex;
+    align-items: center;
   }
 
   .list-col::before {
@@ -583,6 +645,15 @@ export default {
     font-weight: 500;
     margin-right: 8px;
     color: #4e5d78;
+    min-width: 80px;
   }
+
+  /* 移动端列标签自定义 */
+  .col-time::before { content: '检测时间：'; }
+  .col-type-item::before { content: '检测类型：'; }
+  .col-name::before { content: '文件名称：'; }
+  .col-status::before { content: '检测状态：'; }
+  .col-violation-type::before { content: '违规类型：'; }
+  .col-score::before { content: '置信度：'; }
 }
 </style>

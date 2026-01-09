@@ -1,39 +1,190 @@
+<template>
+  <div class="ai-image-detect-container sidebar-layout">
+    <!-- 左侧功能侧边栏 -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h3>AI图片检测</h3>
+        <p>合规校验工具</p>
+      </div>
+      <div class="sidebar-content">
+        <div
+            class="upload-area"
+            @dragover.prevent="handleDragOver"
+            @dragleave.prevent="handleDragLeave"
+            @drop.prevent="handleDrop"
+            :class="{ 'drag-over': dragOver }"
+        >
+          <input
+              ref="fileInputRef"
+              type="file"
+              accept="image/jpg,image/jpeg,image/png,image/webp"
+              class="file-input"
+              @change="handleImageChange"
+          />
+          <div class="upload-icon-wrapper">
+            <svg class="upload-icon" viewBox="0 0 24 24" width="40" height="40">
+              <path fill="#4f46e5" d="M12 16q1.25 0 2.125-.875T15 13q0-1.25-.875-2.125T12 10q-1.25 0-2.125.875T9 13q0 1.25.875 2.125T12 16Zm0-6q.412 0 .707-.294T13 9q0-.412-.293-.706T12 8q-.412 0-.707.294T11 9q0 .412.293.706T12 10Zm0 7q-2.075 0-3.537-1.463T7 18q0-.825.437-1.512T9 15.5q.412-.175.65-.55t.237-.75q0-.412-.293-.706T9 13q-.825 0-1.512.437T7 15q.825 0 1.512-.437T12 16Zm0-11q-2.5 0-4.25 1.75T6 11v6q0 1.25.875 2.125T9 21h6q1.25 0 2.125-.875T18 18v-6q0-2.5-1.75-4.25T12 6Zm0 2q1.5 0 2.5 1t1 2.5v6q0 .412-.293.706T14 17h-4q-.412 0-.707-.294T9 16v-6q0-1.5 1-2.5t2.5-1Z"/>
+            </svg>
+          </div>
+          <button class="upload-btn" @click="triggerFileInput" :disabled="isDetecting">
+            上传图片检测
+          </button>
+          <p class="tips">{{ dragOver ? '释放上传' : '支持拖拽/点击' }}</p>
+        </div>
+        <button class="clear-btn" @click="clearAllRecords" :disabled="isDetecting || chatRecords.length === 0">
+          清空检测记录
+        </button>
+      </div>
+    </div>
+
+    <!-- 右侧内容区域 -->
+    <div class="main-content">
+      <!-- 顶部说明 -->
+      <div class="content-header">
+        <p>支持 JPG/PNG/WEBP 格式，最大 5MB</p>
+      </div>
+      <!-- 检测记录容器 -->
+      <div class="chat-container" ref="chatContainerRef">
+        <!-- 空状态 -->
+        <div class="empty-state" v-if="chatRecords.length === 0 && detectResult.detectStatus === 'idle'">
+          <svg class="empty-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#c0c4cc" d="M864 256H736v-64c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v64H160c-17.7 0-32 14.3-32 32v640c0 17.7 14.3 32 32 32h704c17.7 0 32-14.3 32-32V288c0-17.7-14.3-32-32-32zM352 208h320v48H352v-48zm464 664H208V352h240c17.7 0 32-14.3 32-32v-48h192v48c0 17.7 14.3 32 32 32h240v520zM512 486.4V736c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8V486.4c0-18.7-11.4-35.5-28.3-42.3l-128-42.7c-16.2-5.4-34.2 2.3-40.2 18.3l-64 192c-2.2 6.7 .2 14.1 6 18.7s12.1 6 18.8 2.2l107.9-35.9c16.2-5.4 34.2 2.3 40.2 18.3l80 240c2.2 6.7 .2 14.1-6 18.7s-12.1 6-18.8 2.2l-128-42.7c-16.2-5.4-34.2 2.3-40.2 18.3l-64 192c-2.2 6.7 .2 14.1 6 18.7s12.1 6 18.8 2.2l224-74.7c18.7-6.2 30-23.6 30-42.3V486.4c0-18.7-11.4-35.5-28.3-42.3l-128-42.7c-16.2-5.4-34.2 2.3-40.2 18.3z"/>
+          </svg>
+          <p>暂无检测记录，上传图片开始检测</p>
+        </div>
+
+        <!-- 对话记录 -->
+        <div class="chat-record" v-for="(record, index) in chatRecords" :key="index">
+          <!-- 用户上传的图片 -->
+          <div class="user-message">
+            <div class="avatar user-avatar">
+              <span>👤</span>
+            </div>
+            <div class="message-content">
+              <img :src="record.imageUrl" alt="检测图片" class="detect-image" />
+              <p class="time">{{ record.time }}</p>
+            </div>
+          </div>
+
+          <!-- AI 检测结果 -->
+          <div class="ai-message" :class="record.result.isPass ? 'pass' : 'fail'">
+            <div class="avatar ai-avatar">
+              <span>🤖</span>
+            </div>
+            <div class="message-content">
+              <div class="result-header">
+                <span class="result-tag" :class="record.result.isPass ? 'pass-tag' : 'fail-tag'">
+                  {{ record.result.isPass ? '检测合规' : '检测违规' }}
+                </span>
+                <span class="confidence">置信度：{{ record.result.violationScore }}/100</span>
+              </div>
+              <div class="result-detail" v-if="!record.result.isPass">
+                <p><strong>违规类型：</strong>{{ record.result.violationType || '未知类型' }}</p>
+                <p v-if="record.result.violationArea && record.result.violationArea.length > 0"><strong>违规区域：</strong>共 {{ record.result.violationArea.length }} 处疑似违规区域</p>
+              </div>
+              <p class="time">{{ record.time }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 检测中状态 -->
+        <div class="ai-message detecting"
+             v-if="detectResult.detectStatus === 'submitting' || detectResult.detectStatus === 'waiting'">
+          <div class="avatar ai-avatar">
+            <span>🤖</span>
+          </div>
+          <div class="message-content">
+            <p class="detecting-text">
+              {{ detectResult.detectMsg }}
+              <span class="loading-dots">
+                <span>.</span><span>.</span><span>.</span>
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <!-- 错误提示 -->
+        <div class="ai-message error" v-if="detectResult.detectStatus === 'error'">
+          <div class="avatar ai-avatar">
+            <span>🤖</span>
+          </div>
+          <div class="message-content">
+            <p class="error-text">{{ detectResult.detectMsg }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
 <script>
 import { ref, reactive, onUnmounted } from 'vue';
 import request from '../../utils/request';
 
 export default {
-  name: "ImageAIDetect",
+  name: "AIImageDetect",
   setup() {
-    // 1. 响应式变量
+    // 响应式变量
     const imageFile = ref(null);
     const imagePreviewUrl = ref('');
-    const uploadLoading = ref(false);
     const fileInputRef = ref(null);
-    // 新增：拖拽相关状态
+    const chatContainerRef = ref(null);
     const dragOver = ref(false);
+    const messageQueueListener = ref(null);
+    const taskId = ref('');
 
+    // 检测结果
     const detectResult = reactive({
       isPass: false,
-      detectStatus: 'idle',
+      detectStatus: 'idle', // idle/submitting/waiting/success/error
       violationType: '',
       violationScore: 0,
       violationArea: [],
       detectMsg: ''
     });
 
-    // 历史记录相关
-    const historyDialogVisible = ref(false);
-    const historyLoading = ref(false);
-    const detectHistoryList = ref([]);
+    // 对话记录
+    const chatRecords = ref([]);
 
+    // 配置项
     const maxImageSize = 5 * 1024 * 1024;
     const allowImageTypes = ['image/jpg', 'image/jpeg', 'image/png', 'image/webp'];
 
-    // 2. 核心：处理图片文件（抽取为公共方法，供点击/拖拽调用）
+    // 计算属性：是否正在检测
+    const isDetecting = () => {
+      return detectResult.detectStatus === 'submitting' || detectResult.detectStatus === 'waiting';
+    };
+
+    // 触发文件选择框
+    const triggerFileInput = () => {
+      if (fileInputRef.value && !isDetecting()) {
+        fileInputRef.value.click();
+      }
+    };
+
+    // 格式化时间
+    const formatTime = () => {
+      const now = new Date();
+      const date = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+      const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+      return `${date} ${time}`;
+    };
+
+    // 滚动到底部
+    const scrollToChatBottom = () => {
+      if (chatContainerRef.value) {
+        const container = chatContainerRef.value;
+        container.scrollTop = container.scrollHeight;
+      }
+    };
+
+    // 处理图片文件
     const handleImageFile = (file) => {
-      resetDetectState();
       if (!file) return;
+
+      // 重置上一次检测错误状态
+      detectResult.detectStatus = 'idle';
+      detectResult.detectMsg = '';
 
       // 格式校验
       if (!allowImageTypes.includes(file.type)) {
@@ -41,6 +192,7 @@ export default {
         detectResult.detectMsg = '仅支持 JPG/JPEG/PNG/WEBP 格式！';
         return;
       }
+
       // 大小校验
       if (file.size > maxImageSize) {
         detectResult.detectStatus = 'error';
@@ -48,33 +200,42 @@ export default {
         return;
       }
 
-      // 生成预览（使用 FileReader 替代 URL.createObjectURL，兼容性更好）
+      // 生成预览
       const reader = new FileReader();
       reader.onload = (e) => {
         imagePreviewUrl.value = e.target.result;
+        // 开始检测
+        handleImageAIDetect();
+      };
+      reader.onerror = () => {
+        detectResult.detectStatus = 'error';
+        detectResult.detectMsg = '图片预览生成失败，请更换图片重试！';
       };
       reader.readAsDataURL(file);
-
       imageFile.value = file;
-      detectResult.detectStatus = 'idle';
-      detectResult.detectMsg = '已选择图片，点击「开始AI检测」进行校验';
     };
 
-    // 3. 点击上传：监听 input change 事件
+    // 点击上传
     const handleImageChange = (e) => {
       const file = e.target.files[0];
-      handleImageFile(file);
-      // 立即清空输入框，确保同一张图片可重复上传
-      if (fileInputRef.value) {
-        fileInputRef.value.value = '';
+      if (file) {
+        handleImageFile(file);
       }
+      // 延迟重置，确保文件选择事件完成
+      setTimeout(() => {
+        if (fileInputRef.value) {
+          fileInputRef.value.value = '';
+        }
+      }, 100);
     };
 
-    // 4. 拖拽上传：新增拖拽事件（备选上传方式）
+    // 拖拽上传
     const handleDragOver = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      dragOver.value = true;
+      if (!isDetecting()) {
+        dragOver.value = true;
+      }
     };
 
     const handleDragLeave = (e) => {
@@ -87,8 +248,15 @@ export default {
       e.preventDefault();
       e.stopPropagation();
       dragOver.value = false;
+
+      if (isDetecting()) {
+        detectResult.detectStatus = 'error';
+        detectResult.detectMsg = '当前正在检测中，请等待完成后再上传！';
+        return;
+      }
+
       const file = e.dataTransfer.files[0];
-      if (file && allowImageTypes.includes(file.type)) {
+      if (file) {
         handleImageFile(file);
       } else {
         detectResult.detectStatus = 'error';
@@ -96,44 +264,71 @@ export default {
       }
     };
 
-    const resetDetectState = () => {
-      // 重置检测结果
-      detectResult.isPass = false;
-      detectResult.detectStatus = 'idle';
-      detectResult.violationType = '';
-      detectResult.violationScore = 0;
-      detectResult.violationArea = [];
-      detectResult.detectMsg = '';
-
-      // 重置图片相关
-      imageFile.value = null;
-      if (imagePreviewUrl.value) {
-        imagePreviewUrl.value = '';
-      }
-
-      // 强制重置文件输入框（核心修复）
-      if (fileInputRef.value) {
-        // 方案1：直接清空 value
-        fileInputRef.value.value = '';
-      }
-    };
-
-    // 6. AI
-    const handleImageAIDetect = async () => {
-      if (!imageFile.value) {
+    // 消息队列结果处理
+    const handleMessageQueueResult = (aiResult) => {
+      // 校验返回结果的合法性
+      if (!aiResult || typeof aiResult !== 'object') {
         detectResult.detectStatus = 'error';
-        detectResult.detectMsg = '请先选择需要检测的图片';
+        detectResult.detectMsg = '检测结果格式异常，请重试！';
         return;
       }
 
-      try {
-        uploadLoading.value = true;
-        detectResult.detectStatus = 'detecting';
-        detectResult.detectMsg = '正在进行AI图片检测，请稍候...';
+      // 更新检测结果
+      detectResult.detectStatus = 'success';
+      detectResult.isPass = Boolean(aiResult.isPass);
+      detectResult.violationType = aiResult.violationType || '未识别违规类型';
+      detectResult.violationScore = Math.max(0, Math.min(100, Number(aiResult.violationScore) || 0));
+      detectResult.violationArea = Array.isArray(aiResult.violationArea) ? aiResult.violationArea : [];
 
+      // 添加到对话记录
+      chatRecords.value.push({
+        imageUrl: imagePreviewUrl.value,
+        time: formatTime(),
+        result: { ...JSON.parse(JSON.stringify(detectResult)) }
+      });
+
+      // 滚动到底部
+      scrollToChatBottom();
+
+      // 重置任务ID和预览图
+      taskId.value = '';
+      imagePreviewUrl.value = '';
+    };
+
+    // 停止消息队列监听
+    const stopMessageQueueListening = () => {
+      if (messageQueueListener.value) {
+        // WebSocket 实例处理
+        if (messageQueueListener.value.close) {
+          try {
+            messageQueueListener.value.close(1000, '检测完成，关闭连接');
+          } catch (error) {
+            console.warn('WebSocket 关闭失败：', error);
+          }
+        }
+        // 轮询定时器处理
+        else if (typeof messageQueueListener.value === 'number') {
+          clearInterval(messageQueueListener.value);
+        }
+        messageQueueListener.value = null;
+      }
+    };
+
+    // AI检测
+    const handleImageAIDetect = async () => {
+      if (!imageFile.value || isDetecting()) return;
+
+      try {
+        // 1. 初始化检测状态
+        detectResult.detectStatus = 'submitting';
+        detectResult.detectMsg = '正在提交图片至AI审核';
+        stopMessageQueueListening();
+
+        // 2. 构建表单数据
         const formData = new FormData();
         formData.append('file', imageFile.value);
 
+        // 3. 调用后端接口
         const response = await request({
           url: '/review/picture',
           method: 'post',
@@ -142,370 +337,175 @@ export default {
           timeout: 30000
         });
 
-        const backendDetectData = response.data || response;
-        detectResult.detectStatus = 'success';
-        detectResult.isPass = backendDetectData.isPass;
-        detectResult.violationType = backendDetectData.violationType || '';
-        detectResult.violationScore = backendDetectData.violationScore || 0;
-        detectResult.violationArea = backendDetectData.violationArea || [];
+        // 校验后端返回结果
+        if (!response || !response.data || !response.data.taskId) {
+          throw new Error('未获取到检测任务ID，提交失败');
+        }
+        taskId.value = response.data.taskId;
 
-        detectResult.detectMsg = detectResult.isPass
-            ? `检测合规，置信度：${detectResult.violationScore}/100`
-            : `检测违规【${detectResult.violationType}】，置信度：${detectResult.violationScore}/100`;
+        // 4. 更新状态
+        detectResult.detectStatus = 'waiting';
+        detectResult.detectMsg = '正在等待检测结果（消息队列处理中）';
+
+        // 5. 消息队列监听
+        /************************** 方案1：WebSocket **************************/
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ai-picture/result?taskId=${taskId.value}`;
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          console.log('WebSocket 连接成功，等待检测结果回调');
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const aiResult = JSON.parse(event.data);
+            if (aiResult.taskId === taskId.value) {
+              handleMessageQueueResult(aiResult);
+              stopMessageQueueListening();
+            }
+          } catch (error) {
+            console.error('检测结果解析失败：', error);
+            detectResult.detectStatus = 'error';
+            detectResult.detectMsg = '检测结果解析失败，请重试！';
+            stopMessageQueueListening();
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error('WebSocket 连接错误：', error);
+          detectResult.detectStatus = 'error';
+          detectResult.detectMsg = '消息队列连接失败，将切换为轮询查询';
+          startPollingResult();
+        };
+
+        ws.onclose = (event) => {
+          if (event.code !== 1000 && detectResult.detectStatus === 'waiting') {
+            console.warn('WebSocket 异常关闭：', event.reason);
+            detectResult.detectMsg = '消息队列连接异常关闭，将切换为轮询查询';
+            startPollingResult();
+          }
+        };
+
+        messageQueueListener.value = ws;
 
       } catch (error) {
-        console.error('检测失败：', error);
+        console.error('图片提交失败：', error);
         detectResult.detectStatus = 'error';
-        detectResult.detectMsg = error.message || '检测失败，请检查网络或后端服务！';
-      } finally {
-        uploadLoading.value = false;
+        detectResult.detectMsg = error.message || '图片提交失败，请检查网络或图片格式！';
+        stopMessageQueueListening();
       }
     };
 
-    // 7. 历史记录逻辑（不变）
-    const getDetectHistory = async () => {
-      try {
-        historyDialogVisible.value = true;
-        historyLoading.value = true;
-        const response = await request({
-          url: '/api/history/review/picture',
-          method: 'get',
-          timeout: 10000
-        });
-        detectHistoryList.value = response.data || [];
-      } catch (error) {
-        detectHistoryList.value = [];
-        alert('获取历史记录失败：' + error.message);
-      } finally {
-        historyLoading.value = false;
-      }
-    };
+    // 清空所有记录
+    const clearAllRecords = () => {
+      if (isDetecting()) return;
 
-    // 8. 工具方法
-    const getResultCardClass = () => {
-      switch (detectResult.detectStatus) {
-        case 'detecting': return 'result-detecting';
-        case 'success': return detectResult.isPass ? 'result-pass' : 'result-fail';
-        case 'error': return 'result-error';
-        default: return '';
-      }
-    };
-
-    const getResultStatusText = () => {
-      switch (detectResult.detectStatus) {
-        case 'idle': return '未检测';
-        case 'detecting': return '检测中';
-        case 'success': return detectResult.isPass ? '检测合规' : '检测违规';
-        case 'error': return '检测失败';
-        default: return '未知状态';
-      }
-    };
-
-    onUnmounted(() => {
+      // 重置所有状态
+      chatRecords.value = [];
+      detectResult.detectStatus = 'idle';
+      detectResult.detectMsg = '';
+      detectResult.isPass = false;
+      detectResult.violationScore = 0;
+      detectResult.violationType = '';
+      detectResult.violationArea = [];
       imagePreviewUrl.value = '';
+      imageFile.value = null;
+      taskId.value = '';
+      stopMessageQueueListening();
+    };
+
+    // 组件销毁
+    onUnmounted(() => {
+      stopMessageQueueListening();
+      imageFile.value = null;
     });
 
     return {
       imagePreviewUrl,
-      uploadLoading,
-      detectResult,
       fileInputRef,
+      chatContainerRef,
       dragOver,
-      historyDialogVisible,
-      historyLoading,
-      detectHistoryList,
+      detectResult,
+      chatRecords,
+      isDetecting,
+      triggerFileInput,
       handleImageChange,
       handleDragOver,
       handleDragLeave,
       handleDrop,
-      handleImageAIDetect,
-      resetDetectState,
-      getDetectHistory,
-      getResultCardClass,
-      getResultStatusText
+      clearAllRecords
     };
   }
 };
 </script>
 
-<template>
-  <div class="image-ai-detect-container">
-    <div class="page-title">
-      <h2>图片AI检测</h2>
-      <p>支持点击/拖拽上传 | 格式：JPG/JPEG/PNG/WEBP | 最大：5MB</p>
-    </div>
-
-    <div class="detect-main-content">
-      <!-- 上传预览区域：新增拖拽事件监听 -->
-      <div
-          class="image-upload-preview"
-          @dragover.prevent="handleDragOver"
-          @dragleave.prevent="handleDragLeave"
-          @drop.prevent="handleDrop"
-      >
-        <div class="image-preview-box" v-if="imagePreviewUrl">
-          <img :src="imagePreviewUrl" alt="预览图" class="preview-image" />
-          <div
-              class="violation-area-marker"
-              v-for="(area, index) in detectResult.violationArea"
-              :key="index"
-              :style="{ left: `${area.x}%`, top: `${area.y}%`, width: `${area.width}%`, height: `${area.height}%` }"
-              v-if="detectResult.detectStatus === 'success' && !detectResult.isPass"
-          >
-            <span class="violation-tag">{{ detectResult.violationType }}</span>
-          </div>
-        </div>
-
-        <!-- 上传占位：根据拖拽状态切换样式 -->
-        <div
-            class="image-upload-placeholder"
-            v-else
-            :class="{ 'drag-over': dragOver }"
-        >
-          <svg class="upload-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-            <path fill="#c0c4cc" d="M864 256H736v-64c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v64H160c-17.7 0-32 14.3-32 32v640c0 17.7 14.3 32 32 32h704c17.7 0 32-14.3 32-32V288c0-17.7-14.3-32-32-32zM352 208h320v48H352v-48zm464 664H208V352h240c17.7 0 32-14.3 32-32v-48h192v48c0 17.7 14.3 32 32 32h240v520zM512 486.4V736c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8V486.4c0-18.7-11.4-35.5-28.3-42.3l-128-42.7c-16.2-5.4-34.2 2.3-40.2 18.3l-64 192c-2.2 6.7 .2 14.1 6 18.7s12.1 6 18.8 2.2l107.9-35.9c16.2-5.4 34.2 2.3 40.2 18.3l80 240c2.2 6.7 .2 14.1-6 18.7s-12.1 6-18.8 2.2l-128-42.7c-16.2-5.4-34.2 2.3-40.2 18.3l-64 192c-2.2 6.7 .2 14.1 6 18.7s12.1 6 18.8 2.2l224-74.7c18.7-6.2 30-23.6 30-42.3V486.4c0-18.7-11.4-35.5-28.3-42.3l-128-42.7c-16.2-5.4-34.2 2.3-40.2 18.3z"></path>
-          </svg>
-          <p>{{ dragOver ? '释放图片开始上传' : '点击上传或拖拽图片至此处' }}</p>
-          <span class="tips">支持JPG/JPEG/PNG/WEBP格式，最大5MB</span>
-        </div>
-
-        <input
-            ref="fileInputRef"
-            type="file"
-            accept="image/jpg,image/jpeg,image/png,image/webp"
-            class="image-upload-input"
-            @change="handleImageChange"
-        />
-      </div>
-
-      <div class="detect-operation-result">
-        <div class="operation-buttons">
-          <button
-              class="btn detect-btn"
-              @click="handleImageAIDetect"
-              :disabled="uploadLoading || !imagePreviewUrl"
-          >
-            <span v-if="!uploadLoading">开始AI检测</span>
-            <span v-else>检测中...</span>
-            <i class="loading-icon" v-if="uploadLoading"></i>
-          </button>
-          <button
-              class="btn reset-btn"
-              @click="resetDetectState"
-              :disabled="uploadLoading"
-          >
-            重置
-          </button>
-          <button
-              class="btn history-btn"
-              @click="getDetectHistory"
-              :disabled="uploadLoading"
-          >
-            查看历史记录
-          </button>
-        </div>
-
-        <div class="detect-result-card" :class="getResultCardClass()">
-          <div class="result-title">
-            <h3>检测结果</h3>
-            <span
-                class="result-status-tag"
-                :class="{
-                'status-idle': detectResult.detectStatus === 'idle',
-                'status-detecting': detectResult.detectStatus === 'detecting',
-                'status-pass': detectResult.detectStatus === 'success' && detectResult.isPass,
-                'status-fail': detectResult.detectStatus === 'success' && !detectResult.isPass,
-                'status-error': detectResult.detectStatus === 'error'
-              }"
-            >
-              {{ getResultStatusText() }}
-            </span>
-          </div>
-          <div class="result-content">
-            <p class="result-msg">{{ detectResult.detectMsg || '请上传图片并进行检测' }}</p>
-            <div class="result-detail" v-if="detectResult.detectStatus === 'success'">
-              <div class="detail-item">
-                <label>合规状态：</label>
-                <span :class="detectResult.isPass ? 'text-pass' : 'text-fail'">
-                  {{ detectResult.isPass ? '合规' : '违规' }}
-                </span>
-              </div>
-              <div class="detail-item" v-if="!detectResult.isPass">
-                <label>违规类型：</label>
-                <span class="text-fail">{{ detectResult.violationType || '未知违规类型' }}</span>
-              </div>
-              <div class="detail-item">
-                <label>置信度分数：</label>
-                <span>{{ detectResult.violationScore }}/100</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 历史记录弹窗 -->
-    <div class="history-dialog-mask" v-if="historyDialogVisible" @click="historyDialogVisible = false">
-      <div class="history-dialog" @click.stop>
-        <div class="history-dialog-header">
-          <h3>检测历史记录</h3>
-          <button class="dialog-close-btn" @click="historyDialogVisible = false">×</button>
-        </div>
-        <div class="history-dialog-body">
-          <div class="history-loading" v-if="historyLoading">正在加载历史记录...</div>
-          <div class="history-empty" v-else-if="!detectHistoryList.length">暂无检测历史记录</div>
-          <div class="history-list" v-else>
-            <div class="history-item" v-for="(item, index) in detectHistoryList" :key="index">
-              <div class="history-item-left">
-                <p class="history-detect-time">{{ item.detectTime || '未知时间' }}</p>
-                <p class="history-image-name">{{ item.fileName || '未命名图片' }}</p>
-              </div>
-              <div class="history-item-right">
-                <span class="history-result-tag" :class="item.isPass ? 'tag-pass' : 'tag-fail'">
-                  {{ item.isPass ? '合规' : '违规' }}
-                </span>
-                <p class="history-violation-type" v-if="!item.isPass">
-                  违规类型：{{ item.violationType || '未知' }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="history-dialog-footer">
-          <button class="btn dialog-confirm-btn" @click="historyDialogVisible = false">关闭</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-
 <style scoped>
-.image-ai-detect-container {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 40px 20px;
+/* 基础重置 */
+* {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  color: #1a2b48;
-  background-color: #ffffff;
-  position: relative;
+  overflow-x: hidden;
 }
 
-.page-title {
-  text-align: center;
-  margin-bottom: 40px;
-}
-
-.page-title h2 {
-  font-size: 28px;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.page-title p {
-  font-size: 16px;
-  color: #4e5d78;
-}
-
-.detect-main-content {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-  gap: 40px;
-  align-items: flex-start;
-}
-
-.image-upload-preview {
-  position: relative;
-  width: 100%;
-}
-
-.image-preview-box {
-  width: 100%;
-  height: 450px;
-  border: 2px dashed #e6e9ed;
-  border-radius: 16px;
-  overflow: hidden;
-  background-color: #fafbfc;
-  position: relative;
+.sidebar-layout {
   display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.preview-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.violation-area-marker {
-  position: absolute;
-  border: 2px solid #f56c6c;
-  background-color: rgba(245, 108, 108, 0.2);
-  border-radius: 8px;
-  z-index: 10;
-}
-
-.violation-tag {
-  position: absolute;
-  top: 0;
-  left: 0;
-  background-color: #f56c6c;
-  color: #ffffff;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 4px 0 4px 0;
-}
-
-.image-upload-placeholder {
   width: 100%;
-  height: 450px;
-  border: 2px dashed #e6e9ed;
-  border-radius: 16px;
-  background-color: #fafbfc;
+  height: 100vh;
+  background-color: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* 侧边栏样式 */
+.sidebar {
+  width: 280px;
+  height: 100%;
+  background-color: #ffffff;
+  border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-/* 拖拽悬浮样式 */
-.image-upload-placeholder.drag-over {
-  border-color: #409eff;
-  background-color: #e6f7ff;
+  padding: 24px;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.03);
 }
 
-.image-upload-placeholder:hover {
-  border-color: #409eff;
-  background-color: #f0f7ff;
+.sidebar-header h3 {
+  font-size: 18px;
+  color: #1e293b;
+  margin-bottom: 4px;
+  font-weight: 600;
 }
 
-.upload-icon {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 16px;
-  transition: all 0.3s ease;
-}
-
-.image-upload-placeholder:hover .upload-icon {
-  fill: #409eff;
-  transform: scale(1.1);
-}
-
-.image-upload-placeholder p {
-  font-size: 16px;
-  color: #4e5d78;
-  margin-bottom: 8px;
-}
-
-.image-upload-placeholder .tips {
+.sidebar-header p {
   font-size: 12px;
-  color: #909399;
+  color: #94a3b8;
 }
 
-.image-upload-input {
+.sidebar-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.upload-area {
+  border: 2px dashed #e2e8f0;
+  border-radius: 12px;
+  padding: 30px 16px;
+  text-align: center;
+  transition: all 0.2s;
+  cursor: pointer;
+  background-color: #ffffff;
+}
+
+.upload-area.drag-over {
+  border-color: #4f46e5;
+  background-color: #f5f3ff;
+}
+
+.file-input {
   position: absolute;
   top: 0;
   left: 0;
@@ -513,344 +513,300 @@ export default {
   height: 100%;
   opacity: 0;
   cursor: pointer;
-  z-index: 20;
+  z-index: 1;
 }
 
-.detect-operation-result {
-  width: 100%;
+.upload-icon-wrapper {
+  margin-bottom: 16px;
+}
+
+.upload-btn {
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-bottom: 8px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.upload-btn:disabled {
+  background-color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.upload-btn:hover:not(:disabled) {
+  background-color: #4338ca;
+}
+
+.tips {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.clear-btn {
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: transparent;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.clear-btn:disabled {
+  color: #cbd5e1;
+  border-color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.clear-btn:hover:not(:disabled) {
+  border-color: #4f46e5;
+  color: #4f46e5;
+  background-color: #f5f3ff;
+}
+
+/* 主内容区域 */
+.main-content {
+  flex: 1;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 24px;
 }
 
-.operation-buttons {
+.content-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #ffffff;
+}
+
+.content-header p {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.chat-container {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.chat-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* 空状态 */
+.empty-state {
+  height: 100%;
   display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
 }
 
-.btn {
-  padding: 12px 32px;
-  border-radius: 8px;
+.empty-icon {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 16px;
+  opacity: 0.8;
+}
+
+.empty-state p {
   font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: none;
+}
+
+/* 对话记录 */
+.chat-record {
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+/* 用户消息 */
+.user-message {
+  display: flex;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+/* AI消息 */
+.ai-message {
+  display: flex;
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.ai-message.pass {
+  border-left: 3px solid #10b981;
+}
+
+.ai-message.fail {
+  border-left: 3px solid #ef4444;
+}
+
+.ai-message.detecting {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.ai-message.error {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  border-left: 3px solid #ef4444;
+}
+
+/* 头像 */
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  flex-shrink: 0;
+  margin-right: 12px;
+  overflow: hidden;
 }
 
-.detect-btn {
-  background-color: #409eff;
-  color: #ffffff;
+.user-avatar {
+  background-color: #4f46e5;
+  color: white;
 }
 
-.detect-btn:disabled {
-  background-color: #b3d8ff;
-  cursor: not-allowed;
+.ai-avatar {
+  background-color: #10b981;
+  color: white;
 }
 
-.detect-btn:not(:disabled):hover {
-  background-color: #337ecc;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+/* 消息内容 */
+.message-content {
+  flex: 1;
+  max-width: calc(100% - 48px);
+  overflow: hidden;
 }
 
-.reset-btn {
-  background-color: #f0f2f5;
-  color: #4e5d78;
+/* 用户上传的图片 */
+.detect-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 6px;
+  object-fit: contain;
+  border: 1px solid #e5e7eb;
 }
 
-.reset-btn:disabled {
-  background-color: #fafbfc;
-  color: #c0c4cc;
-  cursor: not-allowed;
+/* 时间 */
+.time {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 4px;
 }
 
-.reset-btn:not(:disabled):hover {
-  background-color: #e6e9ed;
-  color: #1a2b48;
-}
-
-.history-btn {
-  background-color: #67c23a;
-  color: #ffffff;
-}
-
-.history-btn:disabled {
-  background-color: #b3e19d;
-  cursor: not-allowed;
-}
-
-.history-btn:not(:disabled):hover {
-  background-color: #529e2d;
-  box-shadow: 0 4px 12px rgba(103, 194, 58, 0.3);
-}
-
-.loading-icon {
-  width: 16px;
-  height: 16px;
-  border: 2px solid transparent;
-  border-top: 2px solid #ffffff;
-  border-radius: 50%;
-  animation: loading 1s linear infinite;
-}
-
-@keyframes loading {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.detect-result-card {
-  padding: 24px;
-  border-radius: 16px;
-  background-color: #fafbfc;
-  border: 1px solid #e6e9ed;
-  transition: all 0.3s ease;
-}
-
-.result-title {
+/* 检测结果 */
+.result-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e6e9ed;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.result-title h3 {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.result-status-tag {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
+.result-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
   font-weight: 500;
 }
 
-.status-idle { background-color: #f0f2f5; color: #4e5d78; }
-.status-detecting { background-color: #e6f7ff; color: #409eff; }
-.status-pass { background-color: #f0fff4; color: #67c23a; }
-.status-fail { background-color: #fff2f0; color: #f56c6c; }
-.status-error { background-color: #fff2f0; color: #f56c6c; }
-
-.result-content {
-  font-size: 14px;
-  color: #4e5d78;
+.pass-tag {
+  background-color: #d1fae5;
+  color: #059669;
 }
 
-.result-msg {
-  margin-bottom: 16px;
-  line-height: 1.6;
+.fail-tag {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.confidence {
+  font-size: 13px;
+  color: #6b7280;
 }
 
 .result-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  margin-bottom: 4px;
 }
 
-.detail-item {
+.error-text {
+  color: #dc2626;
+}
+
+/* 检测中动画 */
+.detecting-text {
+  color: #4b5563;
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 
-.detail-item label {
-  font-weight: 500;
-  color: #1a2b48;
-  width: 100px;
-  text-align: right;
+.loading-dots {
+  margin-left: 8px;
+  display: flex;
+  gap: 2px;
 }
 
-.text-pass { color: #67c23a; font-weight: 500; }
-.text-fail { color: #f56c6c; font-weight: 500; }
+.loading-dots span {
+  animation: blink 1.4s infinite both;
+}
 
-@media (max-width: 768px) {
-  .detect-main-content {
-    grid-template-columns: 1fr;
-    gap: 24px;
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 0.2;
   }
-  .image-preview-box, .image-upload-placeholder { height: 350px; }
-  .operation-buttons { flex-direction: column; gap: 12px; }
-  .btn { width: 100%; }
+  50% {
+    opacity: 1;
+  }
 }
 
-@media (max-width: 480px) {
-  .image-ai-detect-container { padding: 20px 16px; }
-  .page-title h2 { font-size: 24px; }
-  .image-preview-box, .image-upload-placeholder { height: 280px; }
-  .detect-result-card { padding: 16px; }
-}
-</style>
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .sidebar-layout {
+    flex-direction: column;
+  }
 
-<style>
-.image-ai-detect-container .detect-result-card.result-pass {
-  border-color: #67c23a;
-  background-color: #f0fff4;
-}
-.image-ai-detect-container .detect-result-card.result-fail {
-  border-color: #f56c6c;
-  background-color: #fff2f0;
-}
-.image-ai-detect-container .detect-result-card.result-error {
-  border-color: #f56c6c;
-  background-color: #fff2f0;
-}
-.image-ai-detect-container .detect-result-card.result-detecting {
-  border-color: #409eff;
-  background-color: #f0f7ff;
-}
+  .sidebar {
+    width: 100%;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+  }
 
-/* 历史记录弹窗样式 */
-.history-dialog-mask {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
+  .sidebar-content {
+    justify-content: flex-start;
+    margin-top: 10px;
+  }
 
-.history-dialog {
-  width: 90%;
-  max-width: 600px;
-  background-color: #ffffff;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-}
-
-.history-dialog-header {
-  padding: 16px 24px;
-  border-bottom: 1px solid #e6e9ed;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.history-dialog-header h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0;
-}
-
-.dialog-close-btn {
-  background: none;
-  border: none;
-  font-size: 20px;
-  color: #909399;
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-}
-
-.dialog-close-btn:hover {
-  background-color: #f0f2f5;
-  color: #f56c6c;
-}
-
-.history-dialog-body {
-  padding: 24px;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.history-loading, .history-empty {
-  text-align: center;
-  font-size: 16px;
-  padding: 40px 0;
-}
-
-.history-loading { color: #409eff; }
-.history-empty { color: #909399; }
-
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.history-item {
-  padding: 16px;
-  border-radius: 8px;
-  background-color: #fafbfc;
-  border: 1px solid #e6e9ed;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.history-item-left {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.history-detect-time {
-  font-size: 12px;
-  color: #909399;
-  margin: 0;
-}
-
-.history-image-name {
-  font-size: 14px;
-  color: #1a2b48;
-  margin: 0;
-  font-weight: 500;
-}
-
-.history-item-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.history-result-tag {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.tag-pass { background-color: #f0fff4; color: #67c23a; }
-.tag-fail { background-color: #fff2f0; color: #f56c6c; }
-
-.history-violation-type {
-  font-size: 12px;
-  color: #f56c6c;
-  margin: 0;
-}
-
-.history-dialog-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #e6e9ed;
-  text-align: right;
-}
-
-.dialog-confirm-btn {
-  background-color: #409eff;
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.dialog-confirm-btn:hover {
-  background-color: #337ecc;
+  .detect-image {
+    max-width: 150px;
+    max-height: 150px;
+  }
 }
 </style>

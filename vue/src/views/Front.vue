@@ -2,7 +2,7 @@
   <div class="app-layout">
     <!-- 全局布局容器（包含侧边栏 + 主内容区） -->
     <div class="layout-container">
-      <!-- 公共侧边栏（支持折叠/展开） -->
+      <!-- 公共侧边栏（支持折叠/展开，整合所有功能） -->
       <aside class="layout-sidebar" :class="{ 'sidebar-collapsed': isSidebarCollapsed }">
         <!-- 侧边栏Logo（替换为AI内容检测平台） -->
         <div class="sidebar-logo">
@@ -34,11 +34,69 @@
             </li>
           </ul>
         </nav>
+
+        <!-- 侧边栏底部功能区（整合消息、个人中心、退出登录） -->
+        <div class="sidebar-footer">
+          <!-- 消息提示模块（迁移到侧边栏） -->
+          <div class="sidebar-function-item msg-wrapper" @click="toggleMsgPopup">
+            <button class="msg-btn">
+              <svg viewBox="0 0 24 24" fill="#667085" class="msg-icon">
+                <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+              </svg>
+              <!-- 未读消息红点（有未读时显示） -->
+              <span class="msg-badge" v-if="unreadMsgCount > 0">{{ unreadMsgCount }}</span>
+            </button>
+            <span class="function-text" v-if="!isSidebarCollapsed">系统消息</span>
+            <!-- 消息弹窗（切换显示/隐藏，适配侧边栏位置） -->
+            <div class="msg-popup" v-if="isMsgPopupShow">
+              <!-- 弹窗头部 -->
+              <div class="msg-popup-header">
+                <h3 class="popup-title">系统消息</h3>
+                <button class="popup-clear-btn" @click="markAllAsRead" :disabled="unreadMsgCount === 0">
+                  标为已读
+                </button>
+              </div>
+              <!-- 弹窗内容（消息列表） -->
+              <div class="msg-popup-content">
+                <div class="msg-empty" v-if="msgList.length === 0">
+                  <p>暂无系统消息</p>
+                </div>
+                <div class="msg-item" v-for="(msg, index) in msgList" :key="index" :class="{ 'msg-unread': !msg.isRead }">
+                  <div class="msg-item-time">{{ msg.createTime }}</div>
+                  <div class="msg-item-content">{{ msg.content }}</div>
+                  <div class="msg-item-type" :class="msg.type">{{ getMsgTypeText(msg.type) }}</div>
+                </div>
+              </div>
+              <!-- 弹窗底部 -->
+              <div class="msg-popup-footer">
+                <a href="javascript:;" class="msg-more-link">查看更多消息</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- 个人中心（迁移到侧边栏） -->
+          <div class="sidebar-function-item user-info" v-if="getUserInfo.hasLogin">
+            <img src="https://picsum.photos/40/40" alt="用户头像" class="user-avatar" />
+            <span class="function-text user-name" v-if="!isSidebarCollapsed">
+              {{ getUserInfo.username || '未知用户' }}
+            </span>
+          </div>
+
+          <!-- 退出登录按钮（迁移到侧边栏） -->
+          <div class="sidebar-function-item" @click="handleLogout">
+            <button class="logout-btn">
+              <svg viewBox="0 0 24 24" fill="#667085" class="logout-icon">
+                <path d="M17 3v12h-4v-7H8v7H4V3h13m2-2H2v18h2V3h15v18h2V1z" />
+              </svg>
+            </button>
+            <span class="function-text" v-if="!isSidebarCollapsed">退出登录</span>
+          </div>
+        </div>
       </aside>
 
-      <!-- 主内容区域（头部 + 内容 + 底部） -->
+      <!-- 主内容区域（头部仅保留侧边栏切换按钮，简化布局） -->
       <div class="layout-main">
-        <!-- 公共头部 -->
+        <!-- 简化版公共头部（仅保留折叠按钮） -->
         <header class="layout-header">
           <!-- 侧边栏折叠/展开按钮 -->
           <button class="header-toggle-btn" @click="toggleSidebar">
@@ -46,61 +104,6 @@
               <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
             </svg>
           </button>
-
-          <!-- 头部右侧操作区 -->
-          <div class="header-right">
-            <!-- 消息提示模块（新增核心） -->
-            <div class="msg-wrapper" @click="toggleMsgPopup">
-              <button class="msg-btn">
-                <svg viewBox="0 0 24 24" fill="#667085" class="msg-icon">
-                  <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
-                </svg>
-                <!-- 未读消息红点（有未读时显示） -->
-                <span class="msg-badge" v-if="unreadMsgCount > 0">{{ unreadMsgCount }}</span>
-              </button>
-              <!-- 消息弹窗（切换显示/隐藏） -->
-              <div class="msg-popup" v-if="isMsgPopupShow">
-                <!-- 弹窗头部 -->
-                <div class="msg-popup-header">
-                  <h3 class="popup-title">系统消息</h3>
-                  <button class="popup-clear-btn" @click="markAllAsRead" :disabled="unreadMsgCount === 0">
-                    标为已读
-                  </button>
-                </div>
-                <!-- 弹窗内容（消息列表） -->
-                <div class="msg-popup-content">
-                  <div class="msg-empty" v-if="msgList.length === 0">
-                    <p>暂无系统消息</p>
-                  </div>
-                  <div class="msg-item" v-for="(msg, index) in msgList" :key="index" :class="{ 'msg-unread': !msg.isRead }">
-                    <div class="msg-item-time">{{ msg.createTime }}</div>
-                    <div class="msg-item-content">{{ msg.content }}</div>
-                    <div class="msg-item-type" :class="msg.type">{{ getMsgTypeText(msg.type) }}</div>
-                  </div>
-                </div>
-                <!-- 弹窗底部 -->
-                <div class="msg-popup-footer">
-                  <router-link to="/front/msg-center" class="msg-more-link">查看更多消息</router-link>
-                </div>
-              </div>
-            </div>
-
-            <!-- 个人中心下拉（简化版） -->
-            <div class="user-info">
-              <img src="https://picsum.photos/40/40" alt="用户头像" class="user-avatar" />
-              <span class="user-name" v-if="getUserInfo">
-                {{ getUserInfo.username || '未知用户' }}
-              </span>
-            </div>
-
-            <!-- 退出登录按钮 -->
-            <button class="logout-btn" @click="handleLogout">
-              <svg viewBox="0 0 24 24" fill="#667085" class="logout-icon">
-                <path d="M17 3v12h-4v-7H8v7H4V3h13m2-2H2v18h2V3h15v18h2V1z" />
-              </svg>
-              <span class="logout-text">退出登录</span>
-            </button>
-          </div>
         </header>
 
         <!-- 路由内容容器（嵌入页面内容） -->
@@ -120,6 +123,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+// 注：request 请确保你的项目中存在该工具类，若不存在可注释或替换为真实请求逻辑
 import request from '../utils/request';
 
 // --------------- 路由实例 ---------------
@@ -149,14 +153,14 @@ const navMenus = ref([
     iconPath: "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" // 图片图标
   },
   {
-    path: "/front/video-detect", // 视频检测路由
+    path: "/front/video", // 视频检测路由
     name: "视频AI检测",
     iconPath: "M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" // 视频图标
   },
   {
     path: "/front/history", // 历史记录路由
     name: "检测历史记录",
-    iconPath: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" // 历史记录图标
+    iconPath: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 21l4-4 4 4v-6.17l-2-2V13l2.81-2.81c.39-.39.39-1.02 0-1.41l-2.59-2.59c-.39-.39-1.02-.39-1.41 0L12 10.59 9.19 7.79c-.39-.39-1.02-.39-1.41 0L5 10.59c-.39.39-.39 1.02 0 1.41L7.81 14 5 16.81c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 17.41l2.81 2.81c.39.39 1.02.39 1.41 0l2.59-2.59c.39-.39.39-1.02 0-1.41L14.19 14 17 11.19V13c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v1.59L13 7.41 10.19 10.21c-.39.39-1.02.39-1.41 0L6 7.41c-.39-.39-.39-1.02 0-1.41l2.59-2.59c.39-.39 1.02-.39 1.41 0L12 5.41 14.81 2.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 9 19 11.19V5h-2v1.59L13 9.41 10.19 6.6c-.39-.39-1.02-.39-1.41 0L6 9.41c-.39.39-.39 1.02 0 1.41L8.81 13 6 15.81c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 16.59 14.81 19.4c.39.39 1.02.39 1.41 0l2.59-2.59c.39-.39.39-1.02 0-1.41L16.81 13H19v6h-2v-1.59L13 10.59 10.19 13.4c-.39.39-1.02.39-1.41 0L6 10.59c-.39-.39-.39-1.02 0-1.41l2.59-2.59c.39-.39 1.02-.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 12H19v-6h-2v1.59L13 7.41z" // 历史记录图标
   },
   {
     path: "/front/setting", // 系统设置路由
@@ -170,9 +174,9 @@ const getUserInfo = computed(() => {
   // 从本地存储获取用户名（配合之前的登录逻辑）
   const rememberedUsername = localStorage.getItem("rememberedUsername");
   const accessToken = localStorage.getItem("accessToken");
-  if (accessToken && rememberedUsername) {
+  if (accessToken) {
     return {
-      username: rememberedUsername,
+      username: rememberedUsername || '未知用户',
       hasLogin: true
     };
   }
@@ -197,7 +201,7 @@ const handleLogout = () => {
     localStorage.removeItem("tokenExpireTimestamp");
     localStorage.removeItem("rememberedUsername");
 
-    // 2. 调用后端退出登录接口
+    // 2. 调用后端退出登录接口（可选，根据项目需求保留）
     const refreshToken = localStorage.getItem("refreshToken");
     if (refreshToken) {
       request.post("/auth/logout", {refreshToken})
@@ -216,7 +220,9 @@ const handleLogout = () => {
 
 // --------------- 新增：消息相关核心方法 ---------------
 // 1. 切换消息弹窗显示/隐藏
-const toggleMsgPopup = () => {
+const toggleMsgPopup = (e) => {
+  // 阻止事件冒泡，避免弹窗意外关闭
+  e.stopPropagation();
   isMsgPopupShow.value = !isMsgPopupShow.value;
   // 弹窗显示时，加载消息列表（避免重复请求）
   if (isMsgPopupShow.value && msgList.value.length === 0) {
@@ -230,7 +236,7 @@ const loadMsgList = async () => {
     const response = await request({
       url: "/api/msg/list",
       method: "get",
-      params: { pageSize: 10 } // 只加载最新10条消息
+      params: {pageSize: 10} // 只加载最新10条消息
     });
     const resData = response.data || [];
     msgList.value = resData;
@@ -239,12 +245,12 @@ const loadMsgList = async () => {
   } catch (error) {
     console.error("加载消息列表失败：", error);
     msgList.value = [];
-    unreadMsgCount.value = 0;
   }
 };
 
 // 3. 标记所有消息为已读
-const markAllAsRead = async () => {
+const markAllAsRead = async (e) => {
+  e.stopPropagation();
   if (unreadMsgCount.value === 0) return;
   try {
     await request({
@@ -283,8 +289,6 @@ const handleWindowResize = () => {
   // 移动端（小于768px）自动折叠侧边栏
   if (windowWidth.value < 768) {
     isSidebarCollapsed.value = true;
-  } else {
-    isSidebarCollapsed.value = false;
   }
 };
 
@@ -355,6 +359,9 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   overflow: hidden;
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between; /* 让底部功能区固定在侧边栏底部 */
 }
 
 /* 侧边栏折叠状态 */
@@ -372,6 +379,7 @@ onUnmounted(() => {
   border-bottom: 1px solid #e1e5eb;
   padding: 0 16px;
   background-color: #f8fafc; /* 轻微背景色，提升品牌感 */
+  flex-shrink: 0;
 }
 
 .logo-wrapper {
@@ -401,6 +409,8 @@ onUnmounted(() => {
 /* 侧边栏导航（优化hover样式，贴合AI检测平台） */
 .sidebar-nav {
   padding: 16px 0;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .nav-list {
@@ -447,58 +457,39 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-/* 主内容区域 */
-.layout-main {
-  flex: 1;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* 公共头部（优化边框色，更柔和） */
-.layout-header {
-  height: 60px;
-  background-color: #ffffff;
-  border-bottom: 1px solid #e1e5eb;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
+/* 侧边栏底部功能区（核心：整合所有迁移过来的功能） */
+.sidebar-footer {
+  width: 100%;
+  padding: 16px 0;
+  border-top: 1px solid #e1e5eb;
+  background-color: #f8fafc;
   flex-shrink: 0;
 }
 
-.header-toggle-btn {
-  background: none;
-  border: none;
+.sidebar-function-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  color: #667085;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
   transition: all 0.2s ease;
+  white-space: nowrap;
+  position: relative; /* 为消息弹窗提供定位上下文 */
 }
 
-.header-toggle-btn:hover {
-  background-color: #f0f7ff; /* 与侧边栏hover风格统一 */
+.sidebar-function-item:hover {
+  background-color: #f0f7ff;
+  color: #409eff;
 }
 
-.toggle-icon {
-  width: 20px;
-  height: 20px;
+.function-text {
+  font-size: 14px;
+  margin-left: 12px;
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-/* 新增：消息提示模块样式 */
+/* 消息模块样式（适配侧边栏） */
 .msg-wrapper {
-  position: relative;
   display: flex;
   align-items: center;
 }
@@ -510,32 +501,26 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  width: 18px;
+  height: 18px;
   position: relative;
 }
 
-.msg-btn:hover {
-  background-color: #f0f7ff;
-}
-
 .msg-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 /* 未读消息红点 */
 .msg-badge {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 18px;
-  height: 18px;
+  top: -2px;
+  right: -2px;
+  width: 16px;
+  height: 16px;
   background-color: #f56c6c;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 10px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -543,11 +528,12 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
-/* 消息弹窗 */
+/* 消息弹窗（适配侧边栏，向右展开） */
 .msg-popup {
   position: absolute;
-  top: 50px;
-  right: 0;
+  top: 0;
+  left: 100%; /* 从侧边栏右侧展开 */
+  margin-left: 8px;
   width: 380px;
   background-color: #ffffff;
   border: 1px solid #e1e5eb;
@@ -684,43 +670,28 @@ onUnmounted(() => {
   text-decoration: underline;
 }
 
-/* 个人信息样式 */
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
+/* 个人信息样式（适配侧边栏） */
 .user-avatar {
-  width: 32px;
-  height: 32px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  border: 1px solid #e1e5eb; /* 头像加边框，更精致 */
+  border: 1px solid #e1e5eb;
 }
 
 .user-name {
-  font-size: 14px;
   color: #2c3e50;
 }
 
-/* 退出登录按钮 */
+/* 退出登录按钮（适配侧边栏） */
 .logout-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 14px;
-  color: #667085;
-  padding: 8px 12px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-}
-
-.logout-btn:hover {
-  background-color: #fef0f0; /* 退出按钮hover红色系，提示风险 */
-  color: #f56c6c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
 }
 
 .logout-icon {
@@ -728,8 +699,46 @@ onUnmounted(() => {
   height: 18px;
 }
 
-.logout-text {
-  white-space: nowrap;
+/* 主内容区域 */
+.layout-main {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 简化版公共头部（仅保留折叠按钮，不占用多余空间） */
+.layout-header {
+  height: 60px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e1e5eb;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+
+.header-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.header-toggle-btn:hover {
+  background-color: #f0f7ff; /* 与侧边栏hover风格统一 */
+}
+
+.toggle-icon {
+  width: 20px;
+  height: 20px;
 }
 
 /* 路由内容容器（优化内边距，更舒适） */
@@ -762,12 +771,8 @@ onUnmounted(() => {
     width: 64px;
   }
 
-  .logo-text, .nav-text, .logout-text {
+  .logo-text, .nav-text, .function-text {
     display: none;
-  }
-
-  .header-right {
-    gap: 12px;
   }
 
   .layout-content {
@@ -777,7 +782,9 @@ onUnmounted(() => {
   /* 移动端消息弹窗适配 */
   .msg-popup {
     width: 300px;
-    right: -20px;
+    left: 64px;
+    top: 0;
+    margin-left: 0;
   }
 }
 </style>

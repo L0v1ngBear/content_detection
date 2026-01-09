@@ -15,7 +15,8 @@ const router = createRouter({
                 { path: 'home', name: 'fr_home', meta: {title: '首页'}, component: () => import('../views/front/Home.vue')},
                 { path: 'picture', name: 'picture', meta: {title: '图片检测'}, component: () => import('../views/front/Picture.vue')},
                 { path: 'history', name: 'history', meta: {title: '历史记录'}, component: () => import('../views/front/History.vue')},
-                { path: 'setting', name: 'setting', meta: {title: '设置'}, component: () => import('../views/front/Setting.vue')}
+                { path: 'setting', name: 'setting', meta: {title: '设置'}, component: () => import('../views/front/Setting.vue')},
+                { path: 'video', name: 'video', meta: {title: '视频检测'}, component: () => import('../views/front/Video.vue')}
                 ]
         },
         {   path: '/home', name: 'home', meta: {title: '首页'}, component: () => import('../views/Home.vue')
@@ -29,7 +30,7 @@ const router = createRouter({
     ],
 })
 
-const publicRoutes = ["login", "404", 'register', 'home', 'fr_home', 'picture', 'history', 'setting'];
+const publicRoutes = ["login", "404", 'register', 'home', 'fr_home', 'picture', 'history', 'setting', 'video'];
 
 router.beforeEach((to, from, next) => {
     // 4.1 提取本地存储的登录凭证（accessToken）

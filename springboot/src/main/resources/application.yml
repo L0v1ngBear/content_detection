@@ -11,6 +11,8 @@ spring:
             username: root
             password: 123456
             driver-class-name: com.mysql.cj.jdbc.Driver
+            minimum-idle: 10
+            maximum-pool-size: 30
     jpa:
         # 数据库方言（必须匹配你的数据库类型）
         database-platform: org.hibernate.dialect.MySQL8Dialect
@@ -85,3 +87,5 @@ logging:
     level:
         org.springframework.amqp: DEBUG
         com.rabbitmq: DEBUG
+
+ffmpeg:
