@@ -11,5 +11,4 @@ public class PictureReviewDTO {
     private Long uploadTime;
     private String status;
     private Double yoloScore; // AI审核分数
-
 }

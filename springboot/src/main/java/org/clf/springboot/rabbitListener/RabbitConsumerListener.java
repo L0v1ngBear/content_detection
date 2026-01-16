@@ -35,10 +35,13 @@ public class RabbitConsumerListener {
                               Message message,
                               Channel channel,
                               @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
-
+        String taskId = pictureReviewDTO.getImageId();
         // TODO 接入yolo审核
-        System.out.println("pictureReviewDTO: " + pictureReviewDTO);
-        System.out.println("deliveryTag: " + deliveryTag);
+        try {
+
+        } catch (Exception e) {
+
+        }
         channel.basicAck(deliveryTag, false);
     }
 
@@ -73,5 +76,6 @@ public class RabbitConsumerListener {
         }
     }
 
+    @RabbitListener(queues = "")
 }
 

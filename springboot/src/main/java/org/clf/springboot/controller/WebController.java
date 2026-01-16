@@ -68,7 +68,7 @@ public class WebController {
     public Result setMsgAllRead() {
         try {
             String userId = String.valueOf(UserContextHolder.getUserId());
-            if (userId == null || userId.isEmpty() || UserContextHolder.getUserId() == null) {
+            if (!validateUserId(userId)) {
                 return Result.error(ErrorEnum.NOT_LOGIN.msg);
             }
             webService.setMsgAllRead(userId);
@@ -83,7 +83,7 @@ public class WebController {
     public Result getMsgUnreadCount(@RequestParam(defaultValue = "10") Integer pageSize) {
         try {
             String userId = String.valueOf(UserContextHolder.getUserId());
-            if (userId == null || userId.isEmpty() || UserContextHolder.getUserId() == null) {
+            if (!validateUserId(userId)) {
                 return Result.error(ErrorEnum.NOT_LOGIN.msg);
             }
             Long count = webService.getMsgUnreadCount(userId);
@@ -97,5 +97,19 @@ public class WebController {
     @GetMapping("/now-count")
     public Result getNowCount() {
         return Result.success(webService.getNowCount());
+    }
+
+    @GetMapping("/user/statistics")
+    public Result getUseStatistics() {
+        String userId = String.valueOf(UserContextHolder.getUserId());
+        if (!validateUserId(userId)) {
+            return Result.error(ErrorEnum.NOT_LOGIN.msg);
+        }
+        webService.getUserStatistics(userId);
+        return Result.success();
+    }
+
+    private boolean validateUserId(String userId) {
+        return userId != null && !userId.isEmpty() && UserContextHolder.getUser() != null;
     }
 }

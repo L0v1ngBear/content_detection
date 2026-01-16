@@ -89,8 +89,19 @@ public class WebService {
         return picture;
     }
 
+    // 获取实时统计数量
     public Long getNowCount() {
         Long count = Long.valueOf(stringRedisTemplate.opsForValue().get("now_count"));
         return count;
+    }
+
+    // 获取图标数据
+    public void getStatistics() {
+
+    }
+
+    // 获取用户图表数据
+    public void getUserStatistics(String userId) {
+
     }
 }

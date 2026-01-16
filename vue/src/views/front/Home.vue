@@ -38,51 +38,51 @@ export default {
      * 从后端获取检测统计图表数据（适配封装的 request 工具类）
      * @returns {Promise<void>}
      */
-    // const fetchChartDataFromBackend = async () => {
-    //   try {
-    //     // ① 开启加载状态
-    //     chartLoading.value = true;
-    //     chartError.value = '';
-    //
-    //     const backendData = await request({
-    //       url: '/api/detect/chart/statistics', // 你的后端接口路径（相对路径）
-    //       method: 'get', // 请求方法：get/post/put/delete 等
-    //       params: {
-    //         // 可选：请求参数（如时间范围、筛选条件等）
-    //         // startDate: '2026-01-01',
-    //         // endDate: '2026-01-31'
-    //       }
-    //     });
-    //     detectTypeData.value = backendData.detectTypeList || [];
-    //     lastMonthDetectData.value = backendData.lastMonthData || [];
-    //
-    //     if (!detectTypeData.value.length) {
-    //       throw new Error('后端返回检测种类数据为空');
-    //     }
-    //     if (detectTypeData.value.length !== lastMonthDetectData.value.length) {
-    //       throw new Error('本月与上月数据长度不匹配');
-    //     }
-    //
-    //   } catch (error) {
-    //     // ⑥ 异常处理（捕获 request 工具类抛出的错误或数据格式错误）
-    //     console.error('获取图表数据失败：', error);
-    //     // 优先使用 request 工具类拦截器返回的错误信息，无则使用默认信息
-    //     chartError.value = error.message || '获取统计数据失败，请稍后重试';
-    //
-    //     detectTypeData.value = [
-    //       { name: '文本检测', value: 0, color: '#409eff' },
-    //       { name: '图片检测', value: 0, color: '#67c23a' },
-    //       { name: '视频检测', value: 0, color: '#f56c6c' }
-    //     ];
-    //     lastMonthDetectData.value = [0, 0, 0];
-    //
-    //   } finally {
-    //     // ⑧ 关闭加载状态（无论成功/失败都执行）
-    //     chartLoading.value = false;
-    //   }
-    // };
+    const fetchChartDataFromBackend = async () => {
+      try {
+        // ① 开启加载状态
+        chartLoading.value = true;
+        chartError.value = '';
 
-    // 4. 初始化图表方法（依赖后端获取的数据，无耦合）
+        const backendData = await request({
+          url: '/api/chart/statistics', // 你的后端接口路径
+          method: 'get',
+          params: {
+            // 可选：请求参数（如时间范围、筛选条件等）
+            // startDate: '2026-01-01',
+            // endDate: '2026-01-31'
+          }
+        });
+        detectTypeData.value = backendData.detectTypeList || [];
+        lastMonthDetectData.value = backendData.lastMonthData || [];
+
+        if (!detectTypeData.value.length) {
+          throw new Error('后端返回检测种类数据为空');
+        }
+        if (detectTypeData.value.length !== lastMonthDetectData.value.length) {
+          throw new Error('本月与上月数据长度不匹配');
+        }
+
+      } catch (error) {
+        // ⑥ 异常处理（捕获 request 工具类抛出的错误或数据格式错误）
+        console.error('获取图表数据失败：', error);
+        // 优先使用 request 工具类拦截器返回的错误信息，无则使用默认信息
+        chartError.value = error.message || '获取统计数据失败，请稍后重试';
+
+        detectTypeData.value = [
+          { name: '文本检测', value: 0, color: '#409eff' },
+          { name: '图片检测', value: 0, color: '#67c23a' },
+          { name: '视频检测', value: 0, color: '#f56c6c' }
+        ];
+        lastMonthDetectData.value = [0, 0, 0];
+
+      } finally {
+        // ⑧ 关闭加载状态（无论成功/失败都执行）
+        chartLoading.value = false;
+      }
+    };
+
+    // 4. 初始化图表方法
     const initCharts = () => {
       // 数据为空时不初始化图表
       if (!detectTypeData.value.length) return;

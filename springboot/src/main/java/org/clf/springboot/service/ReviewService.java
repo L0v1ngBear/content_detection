@@ -64,10 +64,10 @@ public class ReviewService{
     private RedisUtils redisUtils;
 
     @Transactional(rollbackFor = Exception.class)
-    public void pictureView(MultipartFile file) {
+    public String pictureView(MultipartFile file) {
         try {
             if (file.isEmpty()) {
-                throw new CustomException("401", "图片不存在");
+                throw new CustomException("400", "图片不存在");
             }
             String originalName = file.getOriginalFilename();
             String suffix = originalName.substring(originalName.lastIndexOf(".")); // 提取后缀（如.jpg）
@@ -139,6 +139,7 @@ public class ReviewService{
 //                        saveMap
 //                );
 //            }
+            return imageId;
         } catch (Exception e) {
             LOGGER.error("图片审核失败", e);
             throw new CustomException("500", "系统异常", e);
@@ -179,4 +180,12 @@ public class ReviewService{
         stringRedisTemplate.expire(imageListKey, REDIS_EXPIRE_TIME + 1, TimeUnit.DAYS);
     }
 
+    public String videoView(MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                throw new CustomException("400", "文件不存在");
+            }
+
+        }
+    }
 }
