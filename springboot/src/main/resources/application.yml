@@ -89,3 +89,9 @@ logging:
         com.rabbitmq: DEBUG
 
 ffmpeg:
+
+scheduled:
+    delete:
+        pic: 0 0 0 * * 0
+    syn:
+        pic: 0 0 2 1 * ?
