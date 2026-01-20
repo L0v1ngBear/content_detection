@@ -28,7 +28,7 @@ export default {
     let pieChartInstance = null;
     let barChartInstance = null;
 
-    // 2. 定义数据相关响应式变量（预留后端数据存储）
+    // 2. 定义数据相关响应式变量（后端仅返回name和value，无color）
     const detectTypeData = ref([]); // 检测种类分布数据（饼图+本月柱状图）
     const lastMonthDetectData = ref([]); // 上月检测数据（柱状图专用）
     const chartLoading = ref(false); // 加载状态
@@ -40,44 +40,46 @@ export default {
      */
     const fetchChartDataFromBackend = async () => {
       try {
-        // ① 开启加载状态
         chartLoading.value = true;
         chartError.value = '';
 
-        const backendData = await request({
-          url: '/api/chart/statistics', // 你的后端接口路径
+        const backendResponse = await request({
+          url: '/api/chart/statistics',
           method: 'get',
-          params: {
-            // 可选：请求参数（如时间范围、筛选条件等）
-            // startDate: '2026-01-01',
-            // endDate: '2026-01-31'
-          }
+          params: {}
         });
-        detectTypeData.value = backendData.detectTypeList || [];
-        lastMonthDetectData.value = backendData.lastMonthData || [];
 
+        // 1. 校验接口状态码
+        if (backendResponse.code !== 200) {
+          throw new Error(backendResponse.message || '检测统计数据获取失败');
+        }
+
+        const backendData = backendResponse.data || {};
+        const detectStatistics = Array.isArray(backendData) ? backendData : (backendData.detectStatistics || []);
+
+        // 3. 映射为前端图表所需格式（关键修改2：对应后端DTO的字段名 typeName/currentMonth/lastMonth）
+        detectTypeData.value = detectStatistics.map(item => ({
+          name: item.typeName || '未知检测类型', // 对应后端 StaticsResponseDTO.typeName
+          value: item.currentMonth || 0 // 对应后端 StaticsResponseDTO.currentMonth
+        }));
+        lastMonthDetectData.value = detectStatistics.map(item => item.lastMonth || 0); // 对应后端 StaticsResponseDTO.lastMonth
+
+        // 4. 数据校验（保持原有逻辑，确保图表有可用数据）
         if (!detectTypeData.value.length) {
           throw new Error('后端返回检测种类数据为空');
         }
-        if (detectTypeData.value.length !== lastMonthDetectData.value.length) {
-          throw new Error('本月与上月数据长度不匹配');
-        }
 
       } catch (error) {
-        // ⑥ 异常处理（捕获 request 工具类抛出的错误或数据格式错误）
         console.error('获取图表数据失败：', error);
-        // 优先使用 request 工具类拦截器返回的错误信息，无则使用默认信息
         chartError.value = error.message || '获取统计数据失败，请稍后重试';
 
         detectTypeData.value = [
-          { name: '文本检测', value: 0, color: '#409eff' },
-          { name: '图片检测', value: 0, color: '#67c23a' },
-          { name: '视频检测', value: 0, color: '#f56c6c' }
+          { name: '图片检测', value: 0 },
+          { name: '视频检测', value: 0 }
         ];
-        lastMonthDetectData.value = [0, 0, 0];
+        lastMonthDetectData.value = [0, 0];
 
       } finally {
-        // ⑧ 关闭加载状态（无论成功/失败都执行）
         chartLoading.value = false;
       }
     };
@@ -137,7 +139,18 @@ export default {
               },
               data: detectTypeData.value,
               itemStyle: {
-                color: (params) => params.data.color,
+                // ========== 修改2：饼图移除文本检测颜色，调整索引匹配（0=图片，1=视频） ==========
+                color: (params) => {
+                  // 按数据索引返回固定颜色，无需配置对象
+                  switch (params.dataIndex) {
+                    case 0:
+                      return '#67c23a'; // 图片检测（第1条数据）
+                    case 1:
+                      return '#f56c6c'; // 视频检测（第2条数据）
+                    default:
+                      return '#c0c4cc'; // 默认兜底颜色
+                  }
+                },
                 borderRadius: 4,
                 shadowBlur: 10,
                 shadowColor: 'rgba(0, 0, 0, 0.05)'
@@ -174,13 +187,13 @@ export default {
               {
                 name: '本月检测',
                 icon: 'rect',
-                iconStyle: { color: '#409eff' }
+                iconStyle: {color: '#67c23a'}
               },
               {
                 name: '上月检测',
                 icon: 'rect',
                 iconStyle: {
-                  color: '#409eff',
+                  color: '#67c23a',
                   opacity: 0.3
                 }
               }],
@@ -237,7 +250,17 @@ export default {
               data: detectTypeData.value.map(item => item.value),
               barWidth: '30%',
               itemStyle: {
-                color: (params) => detectTypeData.value[params.dataIndex].color,
+                // ========== 修改3：柱状图本月移除文本检测颜色，调整索引匹配（0=图片，1=视频） ==========
+                color: (params) => {
+                  switch (params.dataIndex) {
+                    case 0:
+                      return '#67c23a';
+                    case 1:
+                      return '#f56c6c';
+                    default:
+                      return '#c0c4cc';
+                  }
+                },
                 borderRadius: [4, 4, 0, 0]
               },
               emphasis: {
@@ -253,17 +276,30 @@ export default {
               data: lastMonthDetectData.value,
               barWidth: '30%',
               itemStyle: {
+                // ========== 修改4：柱状图上月移除文本检测颜色，调整索引匹配（0=图片，1=视频） ==========
                 color: (params) => {
-                  let color = detectTypeData.value[params.dataIndex].color;
-                  if (color.startsWith('#')) {
-                    const hex = color.slice(1);
+                  let baseColor = '';
+                  // 先按索引获取对应基础色
+                  switch (params.dataIndex) {
+                    case 0:
+                      baseColor = '#67c23a';
+                      break;
+                    case 1:
+                      baseColor = '#f56c6c';
+                      break;
+                    default:
+                      baseColor = '#c0c4cc';
+                  }
+                  // 透明化处理（保持视觉一致性）
+                  if (baseColor.startsWith('#')) {
+                    const hex = baseColor.slice(1);
                     const r = parseInt(hex.slice(0, 2), 16);
                     const g = parseInt(hex.slice(2, 4), 16);
                     const b = parseInt(hex.slice(4, 6), 16);
                     return `rgba(${r}, ${g}, ${b}, 0.3)`;
                   }
-                  if (color.startsWith('rgb')) {
-                    return color.replace('rgb', 'rgba').replace(')', ', 0.3)');
+                  if (baseColor.startsWith('rgb')) {
+                    return baseColor.replace('rgb', 'rgba').replace(')', ', 0.3)');
                   }
                   return 'rgba(150, 150, 150, 0.3)';
                 },
