@@ -15,10 +15,6 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-
 
 @Service
 public class UserService {
@@ -26,14 +22,6 @@ public class UserService {
     private final Logger logger = LoggerFactory.getLogger(UserService.class);
 
     private static final int BCRYPT_LOG_ROUNDS = 11;
-
-    private static final int SHARED_COUNT = 16;
-
-    private static final String REDIS_KEY_PREFIX = "stat_";
-
-    private static final String STAT_TYPE_PICTURE_REVIEW = "picture_review_count";
-
-    private static final long REDIS_KEY_EXPIRE_SECONDS = 32 * 24 * 3600;
 
     @Resource
     private UserMapper userMapper;
@@ -93,27 +81,6 @@ public class UserService {
             userMapper.updateById(user);
         } catch (Exception e) {
             throw new CustomException("500", "修改密码失败", e);
-        }
-    }
-
-    public void countPicReview(Long userId) {
-        try {
-            if (userId == null) {
-                throw new CustomException(ResultCodeEnum.USER_NOT_LOGIN);
-            }
-            String currentMonth = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
-            int sharedIndex = Math.abs(userId.hashCode() % SHARED_COUNT);
-            String redisKey = String.format("%s%s_%s_%d", REDIS_KEY_PREFIX, STAT_TYPE_PICTURE_REVIEW, currentMonth, sharedIndex);
-            String redisField = userId.toString();
-
-            stringRedisTemplate.opsForHash().increment(redisKey, redisField, 1);
-
-            // 3. 仅首次设置过期时间（避免重复调用EXPIRE）
-            if (Boolean.FALSE.equals(stringRedisTemplate.hasKey(redisKey))) {
-                stringRedisTemplate.expire(redisKey, Duration.ofDays(REDIS_KEY_EXPIRE_SECONDS));
-            }
-        } catch (Exception e) {
-            logger.error("统计用户图片审核数量失败");
         }
     }
 }

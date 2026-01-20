@@ -3,6 +3,7 @@ package org.clf.springboot.service;
 import jakarta.annotation.Resource;
 import org.clf.springboot.common.Result;
 import org.clf.springboot.common.ReviewResult;
+import org.clf.springboot.common.enums.ResultCodeEnum;
 import org.clf.springboot.config.RabbitMqConfig;
 import org.clf.springboot.dto.PictureReviewDTO;
 import org.clf.springboot.entity.Picture;
@@ -25,6 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +48,12 @@ public class ReviewService{
     private static final String IMAGE_ID_SEQ_KEY = "image_info:id:seq";
 
     private static final String NOW_COUNT = "now_count";
+
+    // 保存审核次数
+    private static final int SHARED_COUNT = 16;
+    private static final String REDIS_KEY_PREFIX = "stat_";
+    private static final String STAT_TYPE_PICTURE_REVIEW = "picture_review_count";
+    private static final long REDIS_KEY_EXPIRE_SECONDS = 32 * 24 * 3600;
 
     @Value("${minio.redisKey}")
     private String redisPrefix;
@@ -102,6 +112,7 @@ public class ReviewService{
             // 添加图片列表图片id
             addImageId(imageListKey, imageId);
 
+            // 设置过期时间
             stringRedisTemplate.expire(imageDetailKey, REDIS_EXPIRE_TIME, TimeUnit.DAYS);
 
             LOGGER.info("图片上传成功，待审核, imageId={}, userId={}", imageId, userId);
@@ -185,7 +196,31 @@ public class ReviewService{
             if (file.isEmpty()) {
                 throw new CustomException("400", "文件不存在");
             }
+            // TODO 完善视频审核
+            return file.getOriginalFilename();
+        } catch (Exception e) {
+            throw new CustomException("500", "系统异常");
+        }
+    }
 
+    public void savePicReview(Long userId) {
+        try {
+            if (userId == null) {
+                throw new CustomException(ResultCodeEnum.USER_NOT_LOGIN);
+            }
+            String currentMonth = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+            int sharedIndex = Math.abs(userId.hashCode() % SHARED_COUNT);
+            String redisKey = String.format("%s%s_%s_%d", REDIS_KEY_PREFIX, STAT_TYPE_PICTURE_REVIEW, currentMonth, sharedIndex);
+            String redisField = userId.toString();
+
+            stringRedisTemplate.opsForHash().increment(redisKey, redisField, 1);
+
+            // 3. 仅首次设置过期时间（避免重复调用EXPIRE）
+            if (Boolean.FALSE.equals(stringRedisTemplate.hasKey(redisKey))) {
+                stringRedisTemplate.expire(redisKey, Duration.ofDays(REDIS_KEY_EXPIRE_SECONDS));
+            }
+        } catch (Exception e) {
+            LOGGER.error("统计用户图片审核数量失败");
         }
     }
 }
