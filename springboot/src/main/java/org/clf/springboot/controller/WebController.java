@@ -6,6 +6,7 @@ import org.clf.springboot.common.Result;
 import org.clf.springboot.common.enums.ErrorEnum;
 import org.clf.springboot.dto.HistoryPictureResDTO;
 import org.clf.springboot.dto.MsgResponseDTO;
+import org.clf.springboot.dto.StaticsResponseDTO;
 import org.clf.springboot.entity.Msg;
 import org.clf.springboot.service.WebService;
 import org.clf.springboot.utils.UserContextHolder;
@@ -105,8 +106,8 @@ public class WebController {
         if (!validateUserId(userId)) {
             return Result.error(ErrorEnum.NOT_LOGIN.msg);
         }
-        webService.getUserStatistics(userId);
-        return Result.success();
+        List<StaticsResponseDTO> data = webService.getUserStatistics(userId);
+        return Result.success(data);
     }
 
     private boolean validateUserId(String userId) {
