@@ -168,7 +168,7 @@
 
         <!-- 底部注册提示 -->
         <div class="form-footer">
-          还没有账号？<a href="#" class="register-link">立即注册</a>
+          还没有账号？<a href="/register" class="register-link">立即注册</a>
         </div>
       </form>
     </div>
@@ -178,6 +178,8 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import request from '../utils/request.js';
+import router from '../router/index.js';
+import { ElMessage } from 'element-plus';
 
 // --------------- 基础响应式数据 ---------------
 const isSubmitting = ref(false);
@@ -224,7 +226,7 @@ const getSmsCode = () => {
   // 手机号格式校验
   const phoneReg = /^1[3-9]\d{9}$/;
   if (!phoneReg.test(loginForm.phone)) {
-    alert("请输入有效的11位手机号！");
+    ElMessage.warning("请输入有效的11位手机号！");
     return;
   }
 
@@ -232,13 +234,12 @@ const getSmsCode = () => {
   isCodeSending.value = true;
   startCountDown();
 
-  // 模拟获取验证码接口（实际项目替换为真实后端接口）
-  request().post('/auth/sendCode', { phone: loginForm.phone })
+  request.post('/auth/sendCode', { phone: loginForm.phone })
       .then(res => {
-        alert("验证码已发送，请注意查收！");
+        ElMessage.success("验证码已发送，请注意查收！");
       })
       .catch(err => {
-        alert("获取验证码失败，请重试！");
+        ElMessage.error("获取验证码失败，请重试！");
         console.error("获取验证码错误：", err);
         clearCountDown();
       });
@@ -274,16 +275,15 @@ const handleWechatLogin = () => {
   loginForm.authCode = wechatAuthCode;
   loginForm.loginType = 'WECHAT';
 
-  // TODO 暂时还无法实现
-  // 调用后端登录接口（微信登录）
-  request.post('/api/login', loginForm)
+  // 修复：接口路径统一为 /auth/login
+  request.post('/auth/login', loginForm)
       .then(res => {
-        alert("微信登录成功！");
+        ElMessage.success("微信登录成功！");
         console.log("微信登录返回数据：", res.data);
         handleLoginSuccess(res.data);
       })
       .catch(err => {
-        alert("微信登录失败，请重试！");
+        ElMessage.error("微信登录失败，请重试！");
         console.error("微信登录错误：", err);
       })
       .finally(() => {
@@ -305,18 +305,18 @@ const handleLogin = async () => {
   isSubmitting.value = true;
 
   try {
-    const response = await request().post('/auth/login', loginForm);
+    const response = await request.post('/auth/login', loginForm);
 
     // 4. 登录成功处理
-    alert("登录成功！");
+    ElMessage.success("登录成功！");
     console.log("后端返回登录数据：", response.data);
     handleLoginSuccess(response.data);
 
   } catch (error) {
     // 5. 登录失败处理（捕获后端校验/业务错误）
     console.error("登录请求失败：", error);
-    const errorMsg = error.response?.data?.message || "登录失败，请检查信息后重试！";
-    alert(errorMsg);
+    const errorMsg = error.message;
+    ElMessage.error(errorMsg);
 
   } finally {
     // 6. 重置提交状态
@@ -331,18 +331,18 @@ const handleLogin = async () => {
 const validateForm = () => {
   // 校验登录类型（后端必传）
   if (!loginForm.loginType) {
-    alert("登录类型不能为空！");
+    ElMessage.warning("登录类型不能为空！");
     return false;
   }
 
   // 密码登录额外校验
   if (loginForm.loginType === 'PASSWORD') {
     if (!loginForm.username.trim()) {
-      alert("请输入用户名！");
+      ElMessage.warning("请输入用户名！");
       return false;
     }
     if (loginForm.password.length < 6) {
-      alert("密码长度不能少于6位！");
+      ElMessage.warning("密码长度不能少于6位！");
       return false;
     }
   }
@@ -351,11 +351,11 @@ const validateForm = () => {
   if (loginForm.loginType === 'SMS_CODE') {
     const phoneReg = /^1[3-9]\d{9}$/;
     if (!phoneReg.test(loginForm.phone)) {
-      alert("请输入有效的11位手机号！");
+      ElMessage.warning("请输入有效的11位手机号！");
       return false;
     }
     if (!/^\d{6}$/.test(loginForm.verifyCode)) {
-      alert("请输入有效的6位数字验证码！");
+      ElMessage.warning("请输入有效的6位数字验证码！");
       return false;
     }
   }
@@ -369,7 +369,7 @@ const validateForm = () => {
  */
 const handleLoginSuccess = (loginResponse) => {
   // 1. 提取后端 LoginResponseDTO 中的核心数据（解构赋值，更清晰）
-  const { accessToken, refreshToken, expireTime } = loginResponse.data || {};
+  const {accessToken, refreshToken, expireTime} = loginResponse.data || {};
 
   // 2. 存储 JWT Access Token（必要，后续接口请求需携带该令牌）
   if (accessToken) {
@@ -391,26 +391,31 @@ const handleLoginSuccess = (loginResponse) => {
   }
 
   // 5. 处理「记住我」逻辑（仅密码登录有效，存储用户名）
-  // 仅当勾选「记住我」且是密码登录时，才存储用户名（保持原有逻辑合理性）
   if (loginForm.rememberMe && loginForm.loginType === 'PASSWORD') {
     localStorage.setItem("rememberedUsername", loginForm.username);
     console.log("已记住用户名：", loginForm.username);
   } else {
-    // 未勾选「记住我」或非密码登录，清除本地存储的用户名
     localStorage.removeItem("rememberedUsername");
     console.log("已清除记住的用户名");
   }
 
   // 提取登录页跳转时携带的 redirect 参数
-  const redirectPath = router.currentRoute.query.redirect;
-  if (redirectPath) {
-    // 跳转回原目标页面
-    router.push(redirectPath);
+  const redirectPath = router.currentRoute?.query?.redirect || "";
+  if (redirectPath && typeof redirectPath === 'string') {
+    // 可选：安全校验 - 只允许跳转前端内部路径（防止恶意外链）
+    const validPrefix = "/front/"; // 限定只跳转到/front/开头的路径
+    if (redirectPath.startsWith(validPrefix)) {
+      router.push(redirectPath);
+    } else {
+      // 非法路径默认跳首页
+      router.push("/front/home");
+    }
   } else {
-    // 默认跳首页
+    // 无redirect参数或参数无效，跳首页
     router.push("/front/home");
   }
 };
+
 // --------------- 组件生命周期 ---------------
 onMounted(() => {
   // 恢复记住的用户名
@@ -428,7 +433,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 样式部分与上一版一致，无额外修改，此处省略重复代码 */
 .login-container {
   width: 100%;
   height: 100vh;
@@ -497,6 +501,7 @@ onUnmounted(() => {
   align-items: center;
   background: rgba(64, 158, 255, 0.1);
   border-radius: 50%;
+
   svg {
     width: 32px;
     height: 32px;
@@ -856,6 +861,7 @@ onUnmounted(() => {
   .login-icon {
     width: 50px;
     height: 50px;
+
     svg {
       width: 28px;
       height: 28px;
