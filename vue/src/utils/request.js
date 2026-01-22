@@ -49,7 +49,7 @@ request.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// 响应拦截器（核心修改：移除业务错误的 ElMessage 调用）
+// 响应拦截器
 request.interceptors.response.use(
     response => {
         let res = response.data;
@@ -65,10 +65,10 @@ request.interceptors.response.use(
             // 401 单独处理（跳转登录，保留提示）
             if (res.code === '401' || res.code === 401) {
                 ElMessage.error(res.msg || res.message || "登录已过期，请重新登录");
-                localStorage.removeItem("accessToken");
-                localStorage.removeItem("refreshToken");
-                localStorage.removeItem("tokenExpireTimestamp");
-                router.push('/login');
+                // localStorage.removeItem("accessToken");
+                // localStorage.removeItem("refreshToken");
+                // localStorage.removeItem("tokenExpireTimestamp");
+                // router.push('/login');
             }
             // 仅抛出错误，提示交给业务层
             return Promise.reject(new Error(res.msg || res.message || "请求失败"));

@@ -310,7 +310,7 @@ const handleLogin = async () => {
     // 4. 登录成功处理
     ElMessage.success("登录成功！");
     console.log("后端返回登录数据：", response.data);
-    handleLoginSuccess(response.data);
+    handleLoginSuccess(response);
 
   } catch (error) {
     // 5. 登录失败处理（捕获后端校验/业务错误）
@@ -399,21 +399,7 @@ const handleLoginSuccess = (loginResponse) => {
     console.log("已清除记住的用户名");
   }
 
-  // 提取登录页跳转时携带的 redirect 参数
-  const redirectPath = router.currentRoute?.query?.redirect || "";
-  if (redirectPath && typeof redirectPath === 'string') {
-    // 可选：安全校验 - 只允许跳转前端内部路径（防止恶意外链）
-    const validPrefix = "/front/"; // 限定只跳转到/front/开头的路径
-    if (redirectPath.startsWith(validPrefix)) {
-      router.push(redirectPath);
-    } else {
-      // 非法路径默认跳首页
-      router.push("/front/home");
-    }
-  } else {
-    // 无redirect参数或参数无效，跳首页
-    router.push("/front/home");
-  }
+  router.push("/front/home");
 };
 
 // --------------- 组件生命周期 ---------------
