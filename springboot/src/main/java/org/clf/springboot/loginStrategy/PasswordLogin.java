@@ -28,7 +28,7 @@ public class PasswordLogin implements LoginStrategy {
         }
         boolean passWordMatch = BCrypt.checkpw(password, userList.getPassword());
         if (!passWordMatch) {
-            throw new CustomException("密码错误");
+            throw new CustomException("用户名或密码错误");
         }
         return userList.getId();
     }
