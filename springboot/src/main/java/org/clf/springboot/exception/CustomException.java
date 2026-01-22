@@ -8,28 +8,29 @@ import org.clf.springboot.common.enums.ResultCodeEnum;
 @Setter
 public class CustomException extends RuntimeException {
 
-    private String code;
+    private int code;
     private String msg;
 
     public CustomException(String msg) {
         super(msg);
-        this.code = "400";
+        this.code = 400;
         this.msg = msg;
     }
 
-    public CustomException(String code, String msg) {
+    public CustomException(int code, String msg) {
         super(msg);
         this.code = code;
         this.msg = msg;
     }
 
-    public CustomException(String code, String msg, Throwable cause) {
+    public CustomException(int code, String msg, Throwable cause) {
         super(msg, cause);
         this.code = code;
         this.msg = msg;
     }
 
     public CustomException(ResultCodeEnum resultCodeEnum) {
+        super(resultCodeEnum.msg);
         this.code = resultCodeEnum.code;
         this.msg = resultCodeEnum.msg;
     }

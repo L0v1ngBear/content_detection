@@ -20,6 +20,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public Result handleException(Exception e) {
         logger.error(e.getMessage(), e);
-        return Result.error("500", "系统异常");
+        return Result.error(500, "系统异常");
     }
 }

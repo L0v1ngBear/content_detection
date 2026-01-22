@@ -10,4 +10,5 @@ public class StaticsResponseDTO {
     private Long currentMonth;
 
     private Long lastMonth;
+
 }

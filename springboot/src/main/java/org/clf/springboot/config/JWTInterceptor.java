@@ -43,7 +43,7 @@ public class JWTInterceptor implements HandlerInterceptor {
         String accessToken = request.getHeader(Constants.TOKEN);
         if (ObjectUtil.isNull(accessToken)) {
             // 如果没拿到，那么再从请求参数里拿一次
-            request.getParameter(Constants.TOKEN);
+            accessToken = request.getParameter(Constants.TOKEN);
         }
         // 2. 开始执行认证
         if (ObjectUtil.isNull(accessToken) || !accessToken.startsWith(Constants.TOKEN_PREFIX)) {
@@ -65,7 +65,7 @@ public class JWTInterceptor implements HandlerInterceptor {
             throw new CustomException(ResultCodeEnum.TOKEN_CHECK_ERROR);
         }
         try {
-            JWTVerifier jwtVerifier = JWT.require(Algorithm.HMAC256(sign)).acceptExpiresAt(0).build();
+            JWTVerifier jwtVerifier = JWT.require(Algorithm.HMAC256(sign)).build();
             jwtVerifier.verify(accessToken);  // 验证token
         } catch (JWTVerificationException e) {
             // 用户不存在

@@ -143,6 +143,9 @@ public class WebService {
                 // 只查询需要的字段，减少数据库IO
                 .select("stat_value");
         PictureStat pictureStat = pictureStatMapper.selectOne(queryWrapper);
+        if (pictureStat == null) {
+            return resDTO;
+        }
         resDTO.setLastMonth(pictureStat.getStatValue());
         return resDTO;
     }

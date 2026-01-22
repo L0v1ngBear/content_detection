@@ -77,7 +77,7 @@ public class UserService {
         try {
             userMapper.insert(user);
         } catch (Exception e) {
-            throw new CustomException("500", "新增用户失败", e);
+            throw new CustomException(500, "新增用户失败", e);
         }
     }
 
@@ -96,7 +96,7 @@ public class UserService {
         try {
             userMapper.updateById(user);
         } catch (Exception e) {
-            throw new CustomException("500", "修改密码失败", e);
+            throw new CustomException(500, "修改密码失败", e);
         }
     }
 }

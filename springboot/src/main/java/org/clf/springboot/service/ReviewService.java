@@ -77,7 +77,7 @@ public class ReviewService{
     public String pictureView(MultipartFile file) {
         try {
             if (file.isEmpty()) {
-                throw new CustomException("400", "图片不存在");
+                throw new CustomException("图片不存在");
             }
             String originalName = file.getOriginalFilename();
             String suffix = originalName.substring(originalName.lastIndexOf(".")); // 提取后缀（如.jpg）
@@ -153,7 +153,7 @@ public class ReviewService{
             return imageId;
         } catch (Exception e) {
             LOGGER.error("图片审核失败", e);
-            throw new CustomException("500", "系统异常", e);
+            throw new CustomException(500, "系统异常", e);
         }
     }
 
@@ -194,12 +194,12 @@ public class ReviewService{
     public String videoView(MultipartFile file) {
         try {
             if (file.isEmpty()) {
-                throw new CustomException("400", "文件不存在");
+                throw new CustomException("文件不存在");
             }
             // TODO 完善视频审核
             return file.getOriginalFilename();
         } catch (Exception e) {
-            throw new CustomException("500", "系统异常");
+            throw new CustomException(500, "系统异常");
         }
     }
 
