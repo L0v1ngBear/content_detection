@@ -26,12 +26,14 @@
               <path fill="#4f46e5" d="M12 16q1.25 0 2.125-.875T15 13q0-1.25-.875-2.125T12 10q-1.25 0-2.125.875T9 13q0 1.25.875 2.125T12 16Zm0-6q.412 0 .707-.294T13 9q0-.412-.293-.706T12 8q-.412 0-.707.294T11 9q0 .412.293.706T12 10Zm0 7q-2.075 0-3.537-1.463T7 18q0-.825.437-1.512T9 15.5q.412-.175.65-.55t.237-.75q0-.412-.293-.706T9 13q-.825 0-1.512.437T7 15q.825 0 1.512-.437T12 16Zm0-11q-2.5 0-4.25 1.75T6 11v6q0 1.25.875 2.125T9 21h6q1.25 0 2.125-.875T18 18v-6q0-2.5-1.75-4.25T12 6Zm0 2q1.5 0 2.5 1t1 2.5v6q0 .412-.293.706T14 17h-4q-.412 0-.707-.294T9 16v-6q0-1.5 1-2.5t2.5-1Z"/>
             </svg>
           </div>
-          <button class="upload-btn" @click="triggerFileInput" :disabled="isDetecting">
+          <button class="upload-btn" @click="triggerFileInput" :disabled="isDetecting || !isLogin">
             上传图片检测
           </button>
           <p class="tips">{{ dragOver ? '释放上传' : '支持拖拽/点击' }}</p>
+          <!-- 未登录提示文字 -->
+          <p class="login-tips" v-if="!isLogin">请先登录后再使用检测功能</p>
         </div>
-        <button class="clear-btn" @click="clearAllRecords" :disabled="isDetecting || chatRecords.length === 0">
+        <button class="clear-btn" @click="clearAllRecords" :disabled="isDetecting || chatRecords.length === 0 || !isLogin">
           清空检测记录
         </button>
       </div>
@@ -45,8 +47,18 @@
       </div>
       <!-- 检测记录容器 -->
       <div class="chat-container" ref="chatContainerRef">
-        <!-- 空状态 -->
-        <div class="empty-state" v-if="chatRecords.length === 0 && detectResult.detectStatus === 'idle'">
+        <!-- 未登录状态（优先显示） -->
+        <div class="empty-state login-empty" v-if="!isLogin">
+          <svg class="empty-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#c0c4cc" d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"/>
+            <path fill="#c0c4cc" d="M512 336c-48.7 0-88 39.3-88 88s39.3 88 88 88 88-39.3 88-88-39.3-88-88-88zm0 136c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm184 208H328c-17.7 0-32-14.3-32-32v-32c0-17.7 14.3-32 32-32h368c17.7 0 32 14.3 32 32v32c0 17.7-14.3 32-32 32z"/>
+          </svg>
+          <p>请先登录账号，才能使用AI图片检测功能</p>
+          <button class="login-btn" @click="goToLogin">立即登录</button>
+        </div>
+
+        <!-- 空状态（已登录时显示） -->
+        <div class="empty-state" v-else-if="chatRecords.length === 0 && detectResult.detectStatus === 'idle'">
           <svg class="empty-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
             <path fill="#c0c4cc" d="M864 256H736v-64c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v64H160c-17.7 0-32 14.3-32 32v640c0 17.7 14.3 32 32 32h704c17.7 0 32-14.3 32-32V288c0-17.7-14.3-32-32-32zM352 208h320v48H352v-48zm464 664H208V352h240c17.7 0 32-14.3 32-32v-48h192v48c0 17.7 14.3 32 32 32h240v520zM512 486.4V736c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8V486.4c0-18.7-11.4-35.5-28.3-42.3l-128-42.7c-16.2-5.4-34.2 2.3-40.2 18.3l-64 192c-2.2 6.7 .2 14.1 6 18.7s12.1 6 18.8 2.2l107.9-35.9c16.2-5.4 34.2 2.3 40.2 18.3l80 240c2.2 6.7 .2 14.1-6 18.7s-12.1 6-18.8 2.2l-128-42.7c-16.2-5.4-34.2 2.3-40.2 18.3l-64 192c-2.2 6.7 .2 14.1 6 18.7s12.1 6 18.8 2.2l224-74.7c18.7-6.2 30-23.6 30-42.3V486.4c0-18.7-11.4-35.5-28.3-42.3l-128-42.7c-16.2-5.4-34.2 2.3-40.2 18.3z"/>
           </svg>
@@ -89,7 +101,7 @@
 
         <!-- 检测中状态 -->
         <div class="ai-message detecting"
-             v-if="detectResult.detectStatus === 'submitting' || detectResult.detectStatus === 'waiting'">
+             v-if="isLogin && (detectResult.detectStatus === 'submitting' || detectResult.detectStatus === 'waiting')">
           <div class="avatar ai-avatar">
             <span>🤖</span>
           </div>
@@ -104,7 +116,7 @@
         </div>
 
         <!-- 错误提示 -->
-        <div class="ai-message error" v-if="detectResult.detectStatus === 'error'">
+        <div class="ai-message error" v-if="isLogin && detectResult.detectStatus === 'error'">
           <div class="avatar ai-avatar">
             <span>🤖</span>
           </div>
@@ -118,12 +130,17 @@
 </template>
 
 <script>
-import { ref, reactive, onUnmounted } from 'vue';
+import { ref, reactive, onUnmounted, onMounted } from 'vue';
+import { useRouter } from 'vue-router'; // 引入路由
+import { ElMessage } from 'element-plus'; // 引入消息提示
 import request from '../../utils/request';
 
 export default {
   name: "AIImageDetect",
   setup() {
+    // 路由实例
+    const router = useRouter();
+
     // 响应式变量
     const imageFile = ref(null);
     const imagePreviewUrl = ref('');
@@ -132,6 +149,7 @@ export default {
     const dragOver = ref(false);
     const messageQueueListener = ref(null);
     const taskId = ref('');
+    const isLogin = ref(false); // 登录状态标识
 
     // 检测结果
     const detectResult = reactive({
@@ -150,13 +168,41 @@ export default {
     const maxImageSize = 5 * 1024 * 1024;
     const allowImageTypes = ['image/jpg', 'image/jpeg', 'image/png', 'image/webp'];
 
+    // 校验登录状态
+    const checkLoginStatus = () => {
+      // 从本地存储获取token判断登录状态（和你的登录逻辑保持一致）
+      const accessToken = localStorage.getItem("accessToken");
+      isLogin.value = !!accessToken; // 有token则为已登录
+
+      // 未登录时给出提示
+      if (!isLogin.value) {
+        ElMessage.warning('请先登录账号，才能使用AI图片检测功能');
+      }
+    };
+
+    // 跳转到登录页
+    const goToLogin = () => {
+      // 记录当前页面路径，登录成功后可返回
+      router.push({
+        path: '/login',
+        query: { redirect: router.currentRoute.fullPath }
+      });
+    };
+
     // 计算属性：是否正在检测
     const isDetecting = () => {
       return detectResult.detectStatus === 'submitting' || detectResult.detectStatus === 'waiting';
     };
 
-    // 触发文件选择框
+    // 触发文件选择框（增加登录校验）
     const triggerFileInput = () => {
+      // 未登录时提示并跳转
+      if (!isLogin.value) {
+        ElMessage.warning('请先登录后再上传图片');
+        goToLogin();
+        return;
+      }
+
       if (fileInputRef.value && !isDetecting()) {
         fileInputRef.value.click();
       }
@@ -178,8 +224,15 @@ export default {
       }
     };
 
-    // 处理图片文件
+    // 处理图片文件（增加登录校验）
     const handleImageFile = (file) => {
+      // 未登录拦截
+      if (!isLogin.value) {
+        ElMessage.warning('请先登录后再上传图片');
+        goToLogin();
+        return;
+      }
+
       if (!file) return;
 
       // 重置上一次检测错误状态
@@ -229,11 +282,12 @@ export default {
       }, 100);
     };
 
-    // 拖拽上传
+    // 拖拽上传（增加登录校验）
     const handleDragOver = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!isDetecting()) {
+      // 未登录或检测中不允许拖拽
+      if (!isDetecting() && isLogin.value) {
         dragOver.value = true;
       }
     };
@@ -248,6 +302,13 @@ export default {
       e.preventDefault();
       e.stopPropagation();
       dragOver.value = false;
+
+      // 未登录拦截
+      if (!isLogin.value) {
+        ElMessage.warning('请先登录后再上传图片');
+        goToLogin();
+        return;
+      }
 
       if (isDetecting()) {
         detectResult.detectStatus = 'error';
@@ -314,8 +375,15 @@ export default {
       }
     };
 
-    // AI检测
+    // AI检测（增加登录校验）
     const handleImageAIDetect = async () => {
+      // 未登录拦截
+      if (!isLogin.value) {
+        ElMessage.warning('请先登录后再进行检测');
+        goToLogin();
+        return;
+      }
+
       if (!imageFile.value || isDetecting()) return;
 
       try {
@@ -397,8 +465,15 @@ export default {
       }
     };
 
-    // 清空所有记录
+    // 清空所有记录（增加登录校验）
     const clearAllRecords = () => {
+      // 未登录拦截
+      if (!isLogin.value) {
+        ElMessage.warning('请先登录后再操作');
+        goToLogin();
+        return;
+      }
+
       if (isDetecting()) return;
 
       // 重置所有状态
@@ -415,6 +490,11 @@ export default {
       stopMessageQueueListening();
     };
 
+    // 组件挂载时校验登录状态
+    onMounted(() => {
+      checkLoginStatus();
+    });
+
     // 组件销毁
     onUnmounted(() => {
       stopMessageQueueListening();
@@ -429,12 +509,14 @@ export default {
       detectResult,
       chatRecords,
       isDetecting,
+      isLogin, // 暴露登录状态
       triggerFileInput,
       handleImageChange,
       handleDragOver,
       handleDragLeave,
       handleDrop,
-      clearAllRecords
+      clearAllRecords,
+      goToLogin // 暴露跳转登录方法
     };
   }
 };
@@ -547,6 +629,13 @@ export default {
   color: #94a3b8;
 }
 
+/* 未登录提示文字 */
+.login-tips {
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 8px;
+}
+
 .clear-btn {
   padding: 10px;
   border: 1px solid #e2e8f0;
@@ -610,6 +699,28 @@ export default {
   align-items: center;
   justify-content: center;
   color: #94a3b8;
+}
+
+/* 未登录空状态 */
+.login-empty {
+  gap: 16px;
+}
+
+.login-btn {
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 8px;
+  transition: all 0.2s;
+}
+
+.login-btn:hover {
+  background-color: #4338ca;
 }
 
 .empty-icon {
