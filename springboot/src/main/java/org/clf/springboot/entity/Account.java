@@ -15,6 +15,8 @@ public class Account {
 
     private String password;
 
+    private String phone;
+
     @TableField(exist = false)
     private String newPassword;
 
@@ -23,3 +25,4 @@ public class Account {
 
     private String role;
 }
+

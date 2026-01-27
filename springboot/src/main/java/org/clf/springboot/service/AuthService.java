@@ -39,7 +39,7 @@ public class AuthService {
         try {
             userMapper.selectById(userId);
         } catch (Exception e) {
-            throw new CustomException("400", e.getMessage());
+            throw new CustomException(400, e.getMessage());
         }
         LoginResponseDTO loginResponseDTO = new LoginResponseDTO();
         loginResponseDTO.setAccessToken(accessToken);
@@ -51,7 +51,7 @@ public class AuthService {
 
     public void logout(String refreshToken) {
         if (!tokenUtils.logout(refreshToken)) {
-            throw new CustomException("500", "系统异常");
+            throw new CustomException(500, "系统异常");
         }
     }
 
@@ -71,3 +71,4 @@ public class AuthService {
         return loginResponseDTO;
     }
 }
+

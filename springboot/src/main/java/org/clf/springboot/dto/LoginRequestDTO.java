@@ -5,7 +5,6 @@ import lombok.Data;
 
 @Data
 public class LoginRequestDTO {
-
     /** 登录类型：PASSWORD/SMS_CODE/WECHAT/ALIPAY */
     @NotBlank(message = "登录类型不能为空")
     private String loginType;
@@ -20,3 +19,4 @@ public class LoginRequestDTO {
     /** 第三方授权码（仅微信/支付宝登录） */
     private String authCode;
 }
+

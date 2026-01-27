@@ -25,7 +25,7 @@ public class SmsLogin implements LoginStrategy {
         if (StringUtils.isBlank(phone) || StringUtils.isBlank(verifyCode)) {
             throw new CustomException("手机号或验证码不能为空");
         }
-        if (!phoneCodeUtils.validate(phone, verifyCode)) {
+        if (phoneCodeUtils.validate(phone, verifyCode, "login")) {
             throw new CustomException("验证码过期或错误");
         }
         User user = userMapper.selectByPhone(phone);
@@ -46,3 +46,4 @@ public class SmsLogin implements LoginStrategy {
 
 
 }
+

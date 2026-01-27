@@ -75,7 +75,7 @@ public class WebService {
     public void setMsgAllRead(String userId) {
         LambdaUpdateWrapper<Msg> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(Msg::getUserId, userId)
-                        .set(Msg::getIsRead, 1);
+                .set(Msg::getIsRead, 1);
         msgMapper.update(updateWrapper);
     }
 
@@ -143,7 +143,11 @@ public class WebService {
                 // 只查询需要的字段，减少数据库IO
                 .select("stat_value");
         PictureStat pictureStat = pictureStatMapper.selectOne(queryWrapper);
+        if (pictureStat == null) {
+            return resDTO;
+        }
         resDTO.setLastMonth(pictureStat.getStatValue());
         return resDTO;
     }
 }
+

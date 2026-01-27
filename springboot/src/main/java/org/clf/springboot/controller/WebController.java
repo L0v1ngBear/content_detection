@@ -100,7 +100,7 @@ public class WebController {
         return Result.success(webService.getNowCount());
     }
 
-    @GetMapping("/user/statistics")
+    @GetMapping("/chart/statistics")
     public Result getUseStatistics() {
         String userId = String.valueOf(UserContextHolder.getUserId());
         if (!validateUserId(userId)) {
@@ -114,3 +114,4 @@ public class WebController {
         return userId != null && !userId.isEmpty() && UserContextHolder.getUser() != null;
     }
 }
+

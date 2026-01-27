@@ -21,23 +21,6 @@ public class UserController {
     @Resource
     UserService userService;
 
-//    @Operation(summary = "用户登录")
-//    @PostMapping("/login")
-//    public Result login(@Valid @RequestBody User user) {
-//        String token = userService.login(user.getUsername(), user.getPassword());
-//        if (token == null) {
-//            return Result.error("用户名或密码错误");
-//        }
-//        return Result.success(token);
-//    }
-
-    @Operation(summary = "用户注册")
-    @PostMapping("/register")
-    public Result register(@Valid @RequestBody Account account) {
-        userService.register(account);
-        return Result.success();
-    }
-
     @Operation(summary = "修改密码")
     @PutMapping("/{userId}/password")
     public Result password(@Valid @PathVariable("userId") Long userId,
@@ -55,3 +38,4 @@ public class UserController {
         return Result.success();
     }
 }
+
