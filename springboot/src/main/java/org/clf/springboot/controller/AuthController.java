@@ -8,10 +8,8 @@ import org.clf.springboot.common.Result;
 import org.clf.springboot.dto.LoginRequestDTO;
 import org.clf.springboot.dto.LoginResponseDTO;
 import org.clf.springboot.dto.RegisterDTO;
-import org.clf.springboot.entity.Account;
 import org.clf.springboot.service.AuthService;
 import org.clf.springboot.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "多种登录方式接口")
