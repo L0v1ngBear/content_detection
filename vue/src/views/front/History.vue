@@ -1,10 +1,15 @@
 <script>
 import { ref, reactive, onMounted } from 'vue';
 import request from '../../utils/request'; // 适配你的request路径
+import { ElMessage, ElMessageBox } from 'element-plus'; // 新增ElMessageBox（可选）
+import { useRouter } from 'vue-router'; // 引入路由，用于跳转登录页
 
 export default {
   name: "History",
   setup() {
+    // 1. 引入路由实例
+    const router = useRouter();
+
     // 1. 响应式变量定义
     // 列表加载与空状态
     const loading = ref(false);
@@ -51,20 +56,55 @@ export default {
           timeout: 10000
         });
 
-        // 解析响应数据
-        const resData = response.data || [];
-        pagination.total = response.total || 0;
+        // 解析响应数据（兼容不同的后端返回格式）
+        const resData = response.data?.list || response.data || []; // 适配常见的分页返回格式
+        pagination.total = response.data?.total || response.total || 0;
         pagination.totalPages = Math.ceil(pagination.total / pagination.pageSize);
 
         // 处理列表与空状态
         historyList.value = resData;
         empty.value = historyList.value.length === 0 && !loading.value;
 
+        // 新增：获取数据成功的提示（可选，提升体验）
+        if (historyList.value.length > 0) {
+          ElMessage.success(`成功加载 ${historyList.value.length} 条检测记录`);
+        }
+
       } catch (error) {
         console.error('获取检测历史记录失败：', error);
         historyList.value = [];
         empty.value = true;
-        alert('获取历史记录失败：' + (error.message || '服务器内部异常'));
+
+        // 核心修改：判断是否为401未登录
+        const errorCode = error.response?.status || error.code;
+        const errorMsg = error.response?.data?.msg || error.message;
+
+        if (errorCode === 401) {
+          // 1. 提示用户未登录
+          ElMessage.warning(errorMsg || '您尚未登录，请先登录');
+          // 2. 清理本地存储的token（关键：避免重复请求仍带无效token）
+          localStorage.removeItem('accessToken'); // 适配你的token存储键名
+          // 3. 方案A：直接跳转到登录页（推荐）
+          router.push('/login'); // 替换为你的登录页路由路径
+
+          // 方案B：弹出确认框，确认后跳转（可选）
+          // ElMessageBox.confirm(
+          //   '您的登录状态已失效，请重新登录',
+          //   '未登录',
+          //   {
+          //     confirmButtonText: '去登录',
+          //     cancelButtonText: '取消',
+          //     type: 'warning'
+          //   }
+          // ).then(() => {
+          //   router.push('/login');
+          // }).catch(() => {
+          //   ElMessage.info('已取消登录');
+          // });
+        } else {
+          // 其他错误提示
+          ElMessage.error('获取历史记录失败：' + (errorMsg || '服务器内部异常'));
+        }
       } finally {
         // 关闭加载状态
         loading.value = false;
@@ -88,7 +128,11 @@ export default {
 
     // 跳转到指定页码（可选，增强实用性）
     const handleJumpPage = (page) => {
-      if (page < 1 || page > pagination.totalPages) return;
+      if (page < 1 || page > pagination.totalPages) {
+        // 新增：页码输入错误的提示
+        ElMessage.warning(`请输入有效的页码（1-${pagination.totalPages}）`);
+        return;
+      }
       pagination.pageNum = page;
       getHistoryList();
     };
@@ -100,6 +144,8 @@ export default {
       filterForm.status = '';
       filterForm.detectType = ''; // 重置检测类型
       pagination.pageNum = 1; // 重置页码为第一页
+      // 新增：重置筛选的提示
+      ElMessage.info('筛选条件已重置，将加载全部检测记录');
       getHistoryList();
     };
 
@@ -187,9 +233,12 @@ export default {
       <!-- 空状态 -->
       <div class="history-empty" v-else-if="empty">
         <svg class="empty-icon" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-          <path fill="#c0c4cc" d="M864 160H160c-17.7 0-32 14.3-32 32v736c0 17.7 14.3 32 32 32h704c17.7 0 32-14.3 32-32V192c0-17.7-14.3-32-32-32zM640 736c0 4.4-3.6 8-8 8H416c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h216c4.4 0 8 3.6 8 8v48zm0-160c0 4.4-3.6 8-8 8H416c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h216c4.4 0 8 3.6 8 8v48zm0-160c0 4.4-3.6 8-8 8H416c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h216c4.4 0 8 3.6 8 8v48zm192-304H224v-64h608v64z"></path>
+          <path fill="#c0c4cc"
+                d="M864 160H160c-17.7 0-32 14.3-32 32v736c0 17.7 14.3 32 32 32h704c17.7 0 32-14.3 32-32V192c0-17.7-14.3-32-32-32zM640 736c0 4.4-3.6 8-8 8H416c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h216c4.4 0 8 3.6 8 8v48zm0-160c0 4.4-3.6 8-8 8H416c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h216c4.4 0 8 3.6 8 8v48zm0-160c0 4.4-3.6 8-8 8H416c-4.4 0-8-3.6-8-8v-48c0-4.4 3.6-8 8-8h216c4.4 0 8 3.6 8 8v48zm192-304H224v-64h608v64z"></path>
         </svg>
-        <p class="empty-text">暂无{{ filterForm.detectType === 'image' ? '图片' : filterForm.detectType === 'video' ? '视频' : '内容' }}检测历史记录</p>
+        <p class="empty-text">暂无{{
+            filterForm.detectType === 'image' ? '图片' : filterForm.detectType === 'video' ? '视频' : '内容'
+          }}检测历史记录</p>
       </div>
 
       <!-- 列表数据 -->
@@ -649,11 +698,28 @@ export default {
   }
 
   /* 移动端列标签自定义 */
-  .col-time::before { content: '检测时间：'; }
-  .col-type-item::before { content: '检测类型：'; }
-  .col-name::before { content: '文件名称：'; }
-  .col-status::before { content: '检测状态：'; }
-  .col-violation-type::before { content: '违规类型：'; }
-  .col-score::before { content: '置信度：'; }
+  .col-time::before {
+    content: '检测时间：';
+  }
+
+  .col-type-item::before {
+    content: '检测类型：';
+  }
+
+  .col-name::before {
+    content: '文件名称：';
+  }
+
+  .col-status::before {
+    content: '检测状态：';
+  }
+
+  .col-violation-type::before {
+    content: '违规类型：';
+  }
+
+  .col-score::before {
+    content: '置信度：';
+  }
 }
 </style>

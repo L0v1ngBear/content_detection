@@ -7,11 +7,13 @@
         <!-- 侧边栏Logo（替换为AI内容检测平台） -->
         <div class="sidebar-logo">
           <svg v-if="isSidebarCollapsed" viewBox="0 0 24 24" fill="#409eff" class="logo-icon-small">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
+            <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
           </svg>
           <div v-else class="logo-wrapper">
             <svg viewBox="0 0 24 24" fill="#409eff" class="logo-icon">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
+              <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
             </svg>
             <span class="logo-text">AI 内容检测平台</span>
           </div>
@@ -27,7 +29,7 @@
                   exact-active-class="nav-link-active"
               >
                 <svg class="nav-icon" viewBox="0 0 24 24" fill="#667085">
-                  <path :d="menu.iconPath" />
+                  <path :d="menu.iconPath"/>
                 </svg>
                 <span class="nav-text" v-if="!isSidebarCollapsed">{{ menu.name }}</span>
               </router-link>
@@ -37,18 +39,21 @@
 
         <!-- 侧边栏底部功能区（整合消息、个人中心、退出登录） -->
         <div class="sidebar-footer">
-          <!-- 消息提示模块（迁移到侧边栏） -->
-          <div class="sidebar-function-item msg-wrapper" @click="toggleMsgPopup">
-            <button class="msg-btn">
+          <div class="sidebar-function-item msg-wrapper">
+            <!-- 核心修改1：给按钮绑定点击事件 + .stop 阻止冒泡 -->
+            <button class="msg-btn" @click.stop="toggleMsgPopup">
               <svg viewBox="0 0 24 24" fill="#667085" class="msg-icon">
-                <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+                <path
+                    d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
               </svg>
               <!-- 未读消息红点（有未读时显示） -->
               <span class="msg-badge" v-if="unreadMsgCount > 0">{{ unreadMsgCount }}</span>
             </button>
-            <span class="function-text" v-if="!isSidebarCollapsed">系统消息</span>
+            <!-- 核心修改2：给文字也绑定点击事件 + .stop -->
+            <span class="function-text" v-if="!isSidebarCollapsed" @click.stop="toggleMsgPopup">系统消息</span>
             <!-- 消息弹窗（切换显示/隐藏，适配侧边栏位置） -->
-            <div class="msg-popup" v-if="isMsgPopupShow">
+            <!-- 核心修改3：给弹窗加 @click.stop 防止点击弹窗内触发外层事件 -->
+            <div class="msg-popup" v-if="isMsgPopupShow" @click.stop>
               <!-- 弹窗头部 -->
               <div class="msg-popup-header">
                 <h3 class="popup-title">系统消息</h3>
@@ -61,7 +66,8 @@
                 <div class="msg-empty" v-if="msgList.length === 0">
                   <p>暂无系统消息</p>
                 </div>
-                <div class="msg-item" v-for="(msg, index) in msgList" :key="index" :class="{ 'msg-unread': !msg.isRead }">
+                <div class="msg-item" v-for="(msg, index) in msgList" :key="index"
+                     :class="{ 'msg-unread': !msg.isRead }">
                   <div class="msg-item-time">{{ msg.createTime }}</div>
                   <div class="msg-item-content">{{ msg.content }}</div>
                   <div class="msg-item-type" :class="msg.type">{{ getMsgTypeText(msg.type) }}</div>
@@ -74,22 +80,34 @@
             </div>
           </div>
 
-          <!-- 个人中心（迁移到侧边栏） -->
-          <div class="sidebar-function-item user-info" v-if="getUserInfo.hasLogin">
-            <img src="https://picsum.photos/40/40" alt="用户头像" class="user-avatar" />
+          <!-- 个人中心（迁移到侧边栏）- 新增点击跳转逻辑 -->
+          <div
+              class="sidebar-function-item user-info"
+              v-if="getUserInfo.hasLogin"
+              @click="handleUserInfoClick"
+              :style="{cursor: 'pointer'}"
+          >
+            <img src="https://picsum.photos/40/40" alt="用户头像" class="user-avatar"/>
             <span class="function-text user-name" v-if="!isSidebarCollapsed">
               {{ getUserInfo.username || '未知用户' }}
             </span>
           </div>
 
-          <!-- 退出登录按钮（迁移到侧边栏） -->
-          <div class="sidebar-function-item" @click="handleLogout">
+          <!-- 核心修改：根据登录状态动态显示 登录/退出登录 -->
+          <div
+              class="sidebar-function-item"
+              @click="getUserInfo.hasLogin ? handleLogout : handleLogin"
+          >
             <button class="logout-btn">
               <svg viewBox="0 0 24 24" fill="#667085" class="logout-icon">
-                <path d="M17 3v12h-4v-7H8v7H4V3h13m2-2H2v18h2V3h15v18h2V1z" />
+                <!-- 登录/退出登录 不同的图标 -->
+                <path v-if="getUserInfo.hasLogin" d="M17 3v12h-4v-7H8v7H4V3h13m2-2H2v18h2V3h15v18h2V1z"/>
+                <path v-else d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
               </svg>
             </button>
-            <span class="function-text" v-if="!isSidebarCollapsed">退出登录</span>
+            <span class="function-text" v-if="!isSidebarCollapsed">
+              {{ getUserInfo.hasLogin ? '退出登录' : '登录' }}
+            </span>
           </div>
         </div>
       </aside>
@@ -101,14 +119,14 @@
           <!-- 侧边栏折叠/展开按钮 -->
           <button class="header-toggle-btn" @click="toggleSidebar">
             <svg viewBox="0 0 24 24" fill="#667085" class="toggle-icon">
-              <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+              <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
             </svg>
           </button>
         </header>
 
         <!-- 路由内容容器（嵌入页面内容） -->
         <main class="layout-content">
-          <router-view />
+          <router-view/>
         </main>
 
         <!-- 公共底部（替换为AI检测平台版权信息） -->
@@ -121,8 +139,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import {ref, computed, onMounted, onUnmounted} from 'vue';
+import {useRouter} from 'vue-router';
+import {ElMessage} from 'element-plus';
 // 注：request 请确保你的项目中存在该工具类，若不存在可注释或替换为真实请求逻辑
 import request from '../utils/request';
 
@@ -160,7 +179,7 @@ const navMenus = ref([
   {
     path: "/front/history", // 历史记录路由
     name: "检测历史记录",
-    iconPath: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 21l4-4 4 4v-6.17l-2-2V13l2.81-2.81c.39-.39.39-1.02 0-1.41l-2.59-2.59c-.39-.39-1.02-.39-1.41 0L12 10.59 9.19 7.79c-.39-.39-1.02-.39-1.41 0L5 10.59c-.39.39-.39 1.02 0 1.41L7.81 14 5 16.81c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 17.41l2.81 2.81c.39.39 1.02.39 1.41 0l2.59-2.59c.39-.39.39-1.02 0-1.41L14.19 14 17 11.19V13c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v1.59L13 7.41 10.19 10.21c-.39.39-1.02.39-1.41 0L6 7.41c-.39-.39-.39-1.02 0-1.41l2.59-2.59c.39-.39 1.02-.39 1.41 0L12 5.41 14.81 2.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 9 19 11.19V5h-2v1.59L13 9.41 10.19 6.6c-.39-.39-1.02-.39-1.41 0L6 9.41c-.39.39-.39 1.02 0 1.41L8.81 13 6 15.81c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 16.59 14.81 19.4c.39.39 1.02.39 1.41 0l2.59-2.59c.39-.39.39-1.02 0-1.41L16.81 13H19v6h-2v-1.59L13 10.59 10.19 13.4c-.39.39-1.02.39-1.41 0L6 10.59c-.39-.39-.39-1.02 0-1.41l2.59-2.59c.39-.39 1.02-.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 12H19v-6h-2v1.59L13 7.41z" // 历史记录图标
+    iconPath: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 21l4-4 4 4v-6.17l-2-2V13l2.81-2.81c.39-.39.39-1.02 0-1.41l-2.59-2.59c-.39-.39-1.02-.39-1.41 0L12 10.59 9.19 7.79c-.39-.39-1.02-.39-1.41 0L5 10.59c-.39.39-.39 1.02 0 1.41L7.81 14 5 16.81c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 17.41l2.81 2.81c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0 1.41L14.19 14 17 11.19V13c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v1.59L13 7.41 10.19 10.21c-.39.39-1.02.39-1.41 0L6 7.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 9 19 11.19V5h-2v1.59L13 9.41 10.19 6.6c-.39-.39-1.02-.39-1.41 0L6 9.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 16.59 14.81 19.4c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0-1.41L16.81 13H19v6h-2v-1.59L13 10.59 10.19 13.4c-.39.39-1.02.39-1.41 0L6 10.59c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 12H19v-6h-2v1.59L13 7.41z" // 历史记录图标
   },
   {
     path: "/front/setting", // 系统设置路由
@@ -216,6 +235,32 @@ const handleLogout = () => {
     // 3. 跳转到登录页
     router.push("/login");
   }
+};
+
+// --------------- 新增：登录按钮点击逻辑 ---------------
+const handleLogin = () => {
+  // 跳转到登录页面
+  router.push("/login")
+      .then(() => {
+        console.log("✅ 跳转到登录页面成功");
+      })
+      .catch(err => {
+        console.error("❌ 跳转到登录页面失败：", err);
+        ElMessage.warning("登录页面不存在，请检查路由配置");
+      });
+};
+
+// --------------- 个人中心点击跳转逻辑 ---------------
+const handleUserInfoClick = () => {
+  // 跳转到平台设置页面（对应导航菜单中的 /front/setting 路由）
+  router.push("/front/setting")
+      .then(() => {
+        console.log("✅ 跳转到平台设置页面成功");
+      })
+      .catch(err => {
+        console.error("❌ 跳转到平台设置页面失败：", err);
+        ElMessage.warning("设置页面不存在，请检查路由配置");
+      });
 };
 
 // --------------- 新增：消息相关核心方法 ---------------
@@ -670,7 +715,7 @@ onUnmounted(() => {
   text-decoration: underline;
 }
 
-/* 个人信息样式（适配侧边栏） */
+/* 个人信息样式（适配侧边栏）- 新增hover样式 */
 .user-avatar {
   width: 18px;
   height: 18px;
@@ -682,7 +727,12 @@ onUnmounted(() => {
   color: #2c3e50;
 }
 
-/* 退出登录按钮（适配侧边栏） */
+.user-info:hover {
+  background-color: #f0f7ff;
+  color: #409eff;
+}
+
+/* 退出登录/登录按钮（适配侧边栏） */
 .logout-btn {
   background: none;
   border: none;
