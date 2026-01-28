@@ -2,31 +2,55 @@ import axios from "axios";
 import { ElMessage } from "element-plus";
 import router from "../router/index.js";
 
-// 创建请求实例
+// 1. 创建「无拦截器」的基础实例（仅用于刷新Token，避免循环）
+const baseRequest = axios.create({
+    baseURL: 'http://localhost:8080',
+    timeout: 30000
+});
+
+// 2. 创建业务请求实例（带拦截器）
 const request = axios.create({
     baseURL: 'http://localhost:8080',
     timeout: 30000
 });
 
-// 请求拦截器（保持原有逻辑，无需修改）
+// 3. 防抖标记（用闭包，避免污染window全局变量）
+let isRefreshingToken = false;
+let isLoginExpired = false;
+
+// 4. 请求拦截器（核心：移除循环请求，简化逻辑）
 request.interceptors.request.use(
     async (config) => {
+        // 跳过刷新Token接口的拦截器（避免循环）
+        if (config.url.includes('/auth/refreshToken')) {
+            return config;
+        }
+
         const tokenExpireTimestamp = localStorage.getItem("tokenExpireTimestamp");
         const accessToken = localStorage.getItem("accessToken");
         const refreshToken = localStorage.getItem("refreshToken");
 
+        // 1. 基础Token设置
         if (accessToken) {
             config.headers['Authorization'] = `Bearer ${accessToken}`;
         }
 
-        if (tokenExpireTimestamp && refreshToken) {
+        // 2. Token过期检测（仅检测，不在这里刷新，避免阻塞）
+        if (tokenExpireTimestamp && refreshToken && !isRefreshingToken) {
             const expireTime = Number(tokenExpireTimestamp);
-            if (Date.now() > expireTime) {
+            // 提前30秒刷新（避免刚好过期时请求失败）
+            const needRefresh = Date.now() > (expireTime - 30 * 1000);
+
+            if (needRefresh) {
+                isRefreshingToken = true; // 加锁，避免重复刷新
                 try {
-                    const refreshRes = await request.post('/auth/refreshToken',
+                    // 用baseRequest（无拦截器）刷新Token，避免循环
+                    const refreshRes = await baseRequest.post(
+                        '/auth/refreshToken',
                         { refreshToken },
                         { headers: { Authorization: '' } }
                     );
+
                     const { newAccessToken, newTokenExpireTimestamp } = refreshRes.data;
                     if (newAccessToken) {
                         localStorage.setItem("accessToken", newAccessToken);
@@ -34,69 +58,63 @@ request.interceptors.request.use(
                         config.headers['Authorization'] = `Bearer ${newAccessToken}`;
                     }
                 } catch (refreshErr) {
-                    // 刷新Token失败（401），直接跳转登录
-                    ElMessage.error("登录已过期，请重新登录");
-                    localStorage.removeItem("accessToken");
-                    localStorage.removeItem("refreshToken");
-                    localStorage.removeItem("tokenExpireTimestamp");
-                    router.push('/login');
-                    return Promise.reject(refreshErr);
+                    // 刷新失败：只标记，不在这里跳转（交给响应拦截器处理）
+                    console.error('Token刷新失败：', refreshErr);
+                } finally {
+                    isRefreshingToken = false; // 解锁
                 }
             }
         }
+
         return config;
     },
-    (error) => Promise.reject(error)
+    (error) => {
+        isRefreshingToken = false; // 异常时解锁
+        return Promise.reject(error);
+    }
 );
 
-// 响应拦截器（核心优化：401移到error分支处理）
+// 5. 响应拦截器（简化逻辑，避免同步阻塞）
 request.interceptors.response.use(
     response => {
         let res = response.data;
+        // 处理blob类型响应
         if (response.config.responseType === 'blob') {
             return res;
         }
+        // 处理字符串类型响应
         if (typeof res === 'string') {
             res = res ? JSON.parse(res) : res;
         }
-
-        // 仅处理「HTTP 200但业务码非200」的场景（非401）
-        if (res.code !== '200' && res.code !== 200 && res.code !== 401) {
-            // 业务失败：只抛错，提示交给业务层
+        // 业务码非200时抛错（交给业务层处理）
+        if (res.code !== '200' && res.code !== 200) {
             return Promise.reject(new Error(res.msg || res.message || "请求失败"));
         }
-
-        // 业务成功（包括HTTP 200+业务码200），返回数据
         return res;
     },
     error => {
-        // HTTP 错误处理（核心：处理401）
         let errMsg = "";
         const status = error.response?.status;
 
-        // 1. 优先处理401（未登录/Token失效）
-        if (status === 401) {
+        // 处理401（登录过期）
+        if (status === 401 && !isLoginExpired) {
+            isLoginExpired = true;
             errMsg = error.response?.data?.msg || "登录已过期，请重新登录";
-            // 避免重复弹窗/跳转（加防抖）
-            if (!window.isLoginExpired) {
-                window.isLoginExpired = true;
-                ElMessage.error(errMsg);
-                // 清理本地Token
-                localStorage.removeItem("accessToken");
-                localStorage.removeItem("refreshToken");
-                localStorage.removeItem("tokenExpireTimestamp");
-                // // 跳转登录页（保留当前页面路径，登录后可返回）
-                // router.push({
-                //     path: '/login',
-                //     query: { redirect: router.currentRoute.fullPath }
-                // });
-                // 重置防抖标记
-                setTimeout(() => {
-                    window.isLoginExpired = false;
-                }, 1000);
-            }
+            ElMessage.error(errMsg);
+            // 清理Token
+            localStorage.removeItem("accessToken");
+            localStorage.removeItem("refreshToken");
+            localStorage.removeItem("tokenExpireTimestamp");
+            // 延迟跳转（避免同步阻塞）
+            setTimeout(() => {
+                router.push({
+                    path: '/login',
+                    query: { redirect: router.currentRoute?.fullPath || '/' }
+                });
+                isLoginExpired = false;
+            }, 500);
         }
-        // 2. 处理其他HTTP错误
+        // 其他错误类型
         else if (status === 404) {
             errMsg = '未找到请求接口';
         } else if (status === 500) {
@@ -107,7 +125,11 @@ request.interceptors.response.use(
             errMsg = error.message || "网络异常，请检查网络";
         }
 
-        // 抛出包含自定义信息的 Error 实例
+        // 非401错误提示（避免重复弹窗）
+        if (status !== 401) {
+            ElMessage.error(errMsg);
+        }
+
         return Promise.reject(new Error(errMsg));
     }
 );
