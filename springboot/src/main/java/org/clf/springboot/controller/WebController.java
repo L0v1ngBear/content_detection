@@ -114,3 +114,4 @@ public class WebController {
         return userId != null && !userId.isEmpty() && UserContextHolder.getUser() != null;
     }
 }
+

@@ -19,3 +19,4 @@ public class LoginRequestDTO {
     /** 第三方授权码（仅微信/支付宝登录） */
     private String authCode;
 }
+

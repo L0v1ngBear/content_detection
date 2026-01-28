@@ -4,6 +4,7 @@ import jakarta.annotation.Resource;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.clf.springboot.exception.CustomException;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -41,3 +42,4 @@ public class PhoneCodeUtils {
         return code;
     }
 }
+

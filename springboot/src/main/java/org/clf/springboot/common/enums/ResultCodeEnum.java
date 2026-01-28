@@ -14,7 +14,7 @@ public enum ResultCodeEnum {
     SUCCESS(200, "成功", HttpStatus.OK),
     // 参数异常（业务码400，HTTP状态码400）
     PARAM_ERROR(400, "参数异常", HttpStatus.BAD_REQUEST),
-    // 请登录（业务码401，HTTP状态码401）
+
     TOKEN_INVALID_ERROR(401, "请登录", HttpStatus.UNAUTHORIZED),
     // 验证失败（业务码401，HTTP状态码401）
     TOKEN_CHECK_ERROR(401, "验证失败，请重新登录", HttpStatus.UNAUTHORIZED),

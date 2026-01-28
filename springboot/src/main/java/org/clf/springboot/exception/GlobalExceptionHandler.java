@@ -32,3 +32,4 @@ public class GlobalExceptionHandler {
         return Result.error(500, "系统异常");
     }
 }
+

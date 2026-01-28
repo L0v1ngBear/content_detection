@@ -18,6 +18,7 @@ public class CustomException extends RuntimeException {
     // ========== 原有构造器（保留，兼容旧代码） ==========
     public CustomException(String msg) {
         super(msg);
+        this.code = 400;
         this.code = 400;       // 参数类异常默认400，合理
         this.msg = msg;
         this.resultCodeEnum = null; // 无枚举时设为null

@@ -75,7 +75,7 @@ public class WebService {
     public void setMsgAllRead(String userId) {
         LambdaUpdateWrapper<Msg> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(Msg::getUserId, userId)
-                        .set(Msg::getIsRead, 1);
+                .set(Msg::getIsRead, 1);
         msgMapper.update(updateWrapper);
     }
 
@@ -150,3 +150,4 @@ public class WebService {
         return resDTO;
     }
 }
+

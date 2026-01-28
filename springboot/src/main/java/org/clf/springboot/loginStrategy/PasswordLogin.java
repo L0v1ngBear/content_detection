@@ -38,3 +38,4 @@ public class PasswordLogin implements LoginStrategy {
         return "PASSWORD";
     }
 }
+
