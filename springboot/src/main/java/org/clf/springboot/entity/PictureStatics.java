@@ -5,7 +5,7 @@ import lombok.Data;
 import java.util.Date;
 
 @Data
-public class PictureStat {
+public class PictureStatics {
     private Long id;
     private Long userId;
     private String statMonth;

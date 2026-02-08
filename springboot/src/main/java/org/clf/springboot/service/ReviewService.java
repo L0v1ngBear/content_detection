@@ -100,7 +100,7 @@ public class ReviewService{
             // 封装图片信息
             PictureReviewDTO imageInfo = buildImageInfoMap(preSignedUrl, objectName, imageId, userId);
 
-            // 存储到redis中
+            // 将单张图片存储到redis中
             extracted(imageDetailKey, imageId, objectName, preSignedUrl);
 
             // 发送到消息队列，存入mysql
@@ -109,7 +109,7 @@ public class ReviewService{
                     imageInfo,
                     new CorrelationData(UUID.randomUUID().toString()));
 
-            // 添加图片列表图片id
+            // 将用户最近上传图片存入redis
             addImageId(imageListKey, imageId);
 
             // 设置过期时间
@@ -132,24 +132,7 @@ public class ReviewService{
             // 实时检测数量加1
             stringRedisTemplate.opsForValue().increment(NOW_COUNT);
 
-//            // 这里yolo会返回一个准确值
-//            double yoloResult = 0.48;
-//            try {
-//                // 根据返回值设定一个阈值判断是否需要人工审核，打入死信队列中
-//                if (yoloResult < 0.5) {
-//                    rabbitTemplate.convertAndSend(RabbitMqConfig.DEAD_LETTER_EXCHANGE_NAME,
-//                            RabbitMqConfig.DEAD_LETTER_ROUTING_KEY,
-//                            saveMap);
-//                }
-//                rabbitTemplate.convertAndSend(RabbitMqConfig.BUSINESS_EXCHANGE_NAME, RabbitMqConfig.BUSINESS_ROUTING_KEY, saveMap);
-//            } catch (AmqpException e) {
-//                LOGGER.error("消息发送到业务队列失败，转发到死信队列", e);
-//                rabbitTemplate.convertAndSend(
-//                        RabbitMqConfig.DEAD_LETTER_EXCHANGE_NAME,
-//                        RabbitMqConfig.DEAD_LETTER_ROUTING_KEY,
-//                        saveMap
-//                );
-//            }
+
             return imageId;
         } catch (Exception e) {
             LOGGER.error("图片审核失败", e);
@@ -187,7 +170,6 @@ public class ReviewService{
     private void addImageId(String imageListKey, String imageId) {
         // 存储图片ID，score为创建时间戳
         stringRedisTemplate.opsForZSet().add(imageListKey, imageId, System.currentTimeMillis());
-        // 为ZSet设置一个兜底的过期时间（防止定时任务失效）
         stringRedisTemplate.expire(imageListKey, REDIS_EXPIRE_TIME + 1, TimeUnit.DAYS);
     }
 

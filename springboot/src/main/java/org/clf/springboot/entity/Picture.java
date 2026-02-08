@@ -3,13 +3,12 @@ package org.clf.springboot.entity;
 import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
+import org.clf.springboot.dto.BaseReviewResponseDTO;
 import org.jetbrains.annotations.NotNull;
 
 @TableName("picture")
 @Data
-public class Picture {
-
-    private Long id;
+public class Picture extends BaseReviewResponseDTO {
 
     @NotNull
     private Long userId;
@@ -20,14 +19,12 @@ public class Picture {
     @NotBlank
     private String objectName;
 
-    @NotBlank
-    private String status;
-
-    private Long uploadTime;
-
     private Double yoloScore;
+
+    private String detectType = "img";
 
     public Picture() {
 
     }
+
 }

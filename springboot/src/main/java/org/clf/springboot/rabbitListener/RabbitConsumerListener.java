@@ -37,11 +37,31 @@ public class RabbitConsumerListener {
                               @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
         String taskId = pictureReviewDTO.getImageId();
         // TODO 接入yolo审核
+        //            // 这里yolo会返回一个准确值
+//            double yoloResult = 0.48;
+//            try {
+//                // 根据返回值设定一个阈值判断是否需要人工审核，打入死信队列中
+//                if (yoloResult < 0.5) {
+//                    rabbitTemplate.convertAndSend(RabbitMqConfig.DEAD_LETTER_EXCHANGE_NAME,
+//                            RabbitMqConfig.DEAD_LETTER_ROUTING_KEY,
+//                            saveMap);
+//                }
+//                rabbitTemplate.convertAndSend(RabbitMqConfig.BUSINESS_EXCHANGE_NAME, RabbitMqConfig.BUSINESS_ROUTING_KEY, saveMap);
+//            } catch (AmqpException e) {
+//                LOGGER.error("消息发送到业务队列失败，转发到死信队列", e);
+//                rabbitTemplate.convertAndSend(
+//                        RabbitMqConfig.DEAD_LETTER_EXCHANGE_NAME,
+//                        RabbitMqConfig.DEAD_LETTER_ROUTING_KEY,
+//                        saveMap
+//                );
+//            }
         try {
 
         } catch (Exception e) {
 
         }
+
+        // TODO 处理成特定格式
         channel.basicAck(deliveryTag, false);
     }
 
@@ -75,7 +95,5 @@ public class RabbitConsumerListener {
             logger.error("入库失败", e);
         }
     }
-
-    @RabbitListener(queues = "")
 }
 

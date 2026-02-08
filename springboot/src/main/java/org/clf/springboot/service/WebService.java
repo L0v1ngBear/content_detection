@@ -4,11 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import jakarta.annotation.Resource;
-import org.clf.springboot.dto.HistoryPictureResDTO;
 import org.clf.springboot.dto.StaticsResponseDTO;
 import org.clf.springboot.entity.Msg;
 import org.clf.springboot.entity.Picture;
-import org.clf.springboot.entity.PictureStat;
+import org.clf.springboot.entity.PictureStatics;
 import org.clf.springboot.mapper.MsgMapper;
 import org.clf.springboot.mapper.PictureStatMapper;
 import org.clf.springboot.utils.UserContextHolder;
@@ -43,25 +42,6 @@ public class WebService {
     private static final String STAT_TYPE_PICTURE_REVIEW = "picture_review_count";
     private static final String STAT_TYPE_VIDEO_REVIEW = "video_review_count";
 
-    public HistoryPictureResDTO getHistoryPicture() {
-        String userId = String.valueOf(UserContextHolder.getUserId());
-        HistoryPictureResDTO resDTO = new HistoryPictureResDTO();
-        Set<String> imageList = stringRedisTemplate.opsForZSet().range(REDISKEY + userId, 0, -1);
-        String detailKey = REDISKEY + userId;
-        if (imageList == null || imageList.isEmpty()) {
-            resDTO.setTotal(0);
-            resDTO.setPicture(null);
-            return resDTO;
-        }
-        List<Picture> pictures = new ArrayList<>();
-        for (String image : imageList) {
-            Picture picture = buildPicture(detailKey + image);
-            pictures.add(picture);
-        }
-        resDTO.setPicture(pictures);
-        resDTO.setTotal(imageList.size());
-        return resDTO;
-    }
 
     public List<Msg> getLatestMsgList(String userId, Integer pageSize) {
         LambdaQueryWrapper<Msg> queryWrapper = new LambdaQueryWrapper<>();
@@ -105,8 +85,8 @@ public class WebService {
 
     // 获取实时统计数量
     public Long getNowCount() {
-        Long count = Long.valueOf(stringRedisTemplate.opsForValue().get("now_count"));
-        return count;
+        Object value = stringRedisTemplate.opsForValue().get("now_count");
+        return value == null ? 0 : Long.parseLong(String.valueOf(value));
     }
 
     // 获取图标数据
@@ -137,16 +117,16 @@ public class WebService {
         resDTO.setTypeName(typeName);
         Object nowValue = stringRedisTemplate.opsForValue().get(redisKey);
         resDTO.setCurrentMonth(nowValue == null ? null : Long.parseLong(nowValue.toString()));
-        QueryWrapper<PictureStat> queryWrapper = new QueryWrapper<>();
+        QueryWrapper<PictureStatics> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq(userId != null, "user_id", userId)
                 .eq(lastMonth != null && !lastMonth.isEmpty(), "stat_month", lastMonth)
                 // 只查询需要的字段，减少数据库IO
                 .select("stat_value");
-        PictureStat pictureStat = pictureStatMapper.selectOne(queryWrapper);
-        if (pictureStat == null) {
+        PictureStatics pictureStatics = pictureStatMapper.selectOne(queryWrapper);
+        if (pictureStatics == null) {
             return resDTO;
         }
-        resDTO.setLastMonth(pictureStat.getStatValue());
+        resDTO.setLastMonth(pictureStatics.getStatValue());
         return resDTO;
     }
 }

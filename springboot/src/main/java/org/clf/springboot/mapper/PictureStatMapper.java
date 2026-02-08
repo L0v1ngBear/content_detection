@@ -3,11 +3,11 @@ package org.clf.springboot.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import io.lettuce.core.dynamic.annotation.Param;
 import org.apache.ibatis.annotations.Insert;
-import org.clf.springboot.entity.PictureStat;
+import org.clf.springboot.entity.PictureStatics;
 
 import java.util.List;
 
-public interface PictureStatMapper extends BaseMapper<PictureStat> {
+public interface PictureStatMapper extends BaseMapper<PictureStatics> {
 
     @Insert({
             "<script>",
@@ -21,5 +21,5 @@ public interface PictureStatMapper extends BaseMapper<PictureStat> {
             "update_time = NOW()",
             "</script>"
     })
-    int batchUpsert(@Param("list") List<PictureStat> list);
+    int batchUpsert(@Param("list") List<PictureStatics> list);
 }
