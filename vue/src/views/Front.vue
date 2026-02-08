@@ -41,7 +41,7 @@
         <div class="sidebar-footer">
           <div class="sidebar-function-item msg-wrapper">
             <!-- 核心修改1：给按钮绑定点击事件 + .stop 阻止冒泡 -->
-            <button class="msg-btn" @click.stop="toggleMsgPopup">
+            <button class="msg-btn" @click.stop="toggleMsgPopup()">
               <svg viewBox="0 0 24 24" fill="#667085" class="msg-icon">
                 <path
                     d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
@@ -50,14 +50,14 @@
               <span class="msg-badge" v-if="unreadMsgCount > 0">{{ unreadMsgCount }}</span>
             </button>
             <!-- 核心修改2：给文字也绑定点击事件 + .stop -->
-            <span class="function-text" v-if="!isSidebarCollapsed" @click.stop="toggleMsgPopup">系统消息</span>
+            <span class="function-text" v-if="!isSidebarCollapsed" @click.stop="toggleMsgPopup()">系统消息</span>
             <!-- 消息弹窗（切换显示/隐藏，适配侧边栏位置） -->
             <!-- 核心修改3：给弹窗加 @click.stop 防止点击弹窗内触发外层事件 -->
             <div class="msg-popup" v-if="isMsgPopupShow" @click.stop>
               <!-- 弹窗头部 -->
               <div class="msg-popup-header">
                 <h3 class="popup-title">系统消息</h3>
-                <button class="popup-clear-btn" @click="markAllAsRead" :disabled="unreadMsgCount === 0">
+                <button class="popup-clear-btn" @click="markAllAsRead()" :disabled="unreadMsgCount === 0">
                   标为已读
                 </button>
               </div>
@@ -75,7 +75,7 @@
               </div>
               <!-- 弹窗底部 -->
               <div class="msg-popup-footer">
-                <a href="javascript:;" class="msg-more-link">查看更多消息</a>
+                <a href="javascript:;" class="msg-more-link" @click="viewMoreMsg()">查看更多消息</a>
               </div>
             </div>
           </div>
@@ -84,19 +84,19 @@
           <div
               class="sidebar-function-item user-info"
               v-if="getUserInfo.hasLogin"
-              @click="handleUserInfoClick"
+              @click="handleUserInfoClick()"
               :style="{cursor: 'pointer'}"
           >
             <img src="https://picsum.photos/40/40" alt="用户头像" class="user-avatar"/>
             <span class="function-text user-name" v-if="!isSidebarCollapsed">
-              {{ getUserInfo.username || '未知用户' }}
+              {{ getUserInfo.username }}
             </span>
           </div>
 
           <!-- 核心修改：根据登录状态动态显示 登录/退出登录 -->
           <div
               class="sidebar-function-item"
-              @click="getUserInfo.hasLogin ? handleLogout : handleLogin"
+              @click="getUserInfo.hasLogin ? handleLogout() : handleLogin()"
           >
             <button class="logout-btn">
               <svg viewBox="0 0 24 24" fill="#667085" class="logout-icon">
@@ -117,7 +117,7 @@
         <!-- 简化版公共头部（仅保留折叠按钮） -->
         <header class="layout-header">
           <!-- 侧边栏折叠/展开按钮 -->
-          <button class="header-toggle-btn" @click="toggleSidebar">
+          <button class="header-toggle-btn" @click="toggleSidebar()">
             <svg viewBox="0 0 24 24" fill="#667085" class="toggle-icon">
               <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
             </svg>
@@ -158,6 +158,8 @@ const windowWidth = ref(window.innerWidth);
 const isMsgPopupShow = ref(false); // 消息弹窗显示/隐藏
 const msgList = ref([]); // 消息列表
 const unreadMsgCount = ref(0); // 未读消息数量
+// 新增：存储从接口获取的用户名
+const apiUsername = ref('');
 
 // --------------- 侧边栏导航菜单配置（替换为AI检测平台核心功能） ---------------
 const navMenus = ref([
@@ -179,7 +181,7 @@ const navMenus = ref([
   {
     path: "/front/history", // 历史记录路由
     name: "检测历史记录",
-    iconPath: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 21l4-4 4 4v-6.17l-2-2V13l2.81-2.81c.39-.39.39-1.02 0-1.41l-2.59-2.59c-.39-.39-1.02-.39-1.41 0L12 10.59 9.19 7.79c-.39-.39-1.02-.39-1.41 0L5 10.59c-.39.39-.39 1.02 0 1.41L7.81 14 5 16.81c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 17.41l2.81 2.81c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0 1.41L14.19 14 17 11.19V13c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v1.59L13 7.41 10.19 10.21c-.39.39-1.02.39-1.41 0L6 7.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 9 19 11.19V5h-2v1.59L13 9.41 10.19 6.6c-.39-.39-1.02-.39-1.41 0L6 9.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 16.59 14.81 19.4c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0-1.41L16.81 13H19v6h-2v-1.59L13 10.59 10.19 13.4c-.39.39-1.02.39-1.41 0L6 10.59c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 12H19v-6h-2v1.59L13 7.41z" // 历史记录图标
+    iconPath: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 21l4-4 4 4v-6.17l-2-2V13l2.81-2.81c.39-.39.39-1.02 0-1.41l-2.59-2.59c.39-.39 1.02-.39 1.41 0L12 10.59 9.19 7.79c-.39-.39-1.02-.39-1.41 0L5 10.59c-.39.39-.39 1.02 0 1.41L7.81 14 5 16.81c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 17.41l2.81 2.81c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0 1.41L14.19 14 17 11.19V13c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v1.59L13 7.41 10.19 10.21c-.39-.39-1.02-.39-1.41 0L6 7.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 9 19 11.19V5h-2v1.59L13 9.41 10.19 6.6c-.39-.39-1.02-.39-1.41 0L6 9.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 16.59 14.81 19.4c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0-1.41L16.81 13H19v6h-2v-1.59L13 10.59 10.19 13.4c-.39.39-1.02.39-1.41 0L6 10.59c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 12H19v-6h-2v1.59L13 7.41z" // 历史记录图标
   },
   {
     path: "/front/setting", // 系统设置路由
@@ -188,52 +190,111 @@ const navMenus = ref([
   }
 ]);
 
-// --------------- 计算属性：获取本地存储的用户信息 ---------------
+// --------------- 计算属性：分层获取用户信息 ---------------
 const getUserInfo = computed(() => {
-  // 从本地存储获取用户名（配合之前的登录逻辑）
-  const rememberedUsername = localStorage.getItem("rememberedUsername");
   const accessToken = localStorage.getItem("accessToken");
-  if (accessToken) {
+  if (!accessToken) {
     return {
-      username: rememberedUsername || '未知用户',
+      username: "",
+      hasLogin: false
+    };
+  }
+
+  // 优先级1：本地存储的rememberedUsername
+  const rememberedUsername = localStorage.getItem("rememberedUsername");
+  if (rememberedUsername) {
+    return {
+      username: rememberedUsername,
       hasLogin: true
     };
   }
+
+  // 优先级2：从接口获取的用户名
+  if (apiUsername.value) {
+    return {
+      username: apiUsername.value,
+      hasLogin: true
+    };
+  }
+
+  // 最终兜底：未知用户
   return {
-    username: "",
-    hasLogin: false
+    username: '未知用户',
+    hasLogin: true
   };
 });
+
+// --------------- 新增：从接口获取用户名 ---------------
+const fetchUsername = async () => {
+  try {
+    const res = await request({
+      url: "/api/getUserName", // 你的获取用户名接口
+      method: "get"
+    });
+    // 可根据实际接口返回格式调整解析逻辑
+    if (res.code === 200 && res.data) {
+      apiUsername.value = res.data;
+      // 可选：将接口获取的用户名存入本地，下次无需重复请求
+      // localStorage.setItem("rememberedUsername", res.data);
+      ElMessage.success(`欢迎回来，${res.data}！`);
+    }
+  } catch (error) {
+    console.error("获取用户名失败：", error);
+    apiUsername.value = '';
+    ElMessage.error('获取用户信息失败，请刷新页面重试');
+  }
+};
 
 // --------------- 侧边栏折叠/展开切换 ---------------
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
+  ElMessage.info(isSidebarCollapsed.value ? '侧边栏已折叠' : '侧边栏已展开');
 };
 
 // --------------- 退出登录逻辑 ---------------
-const handleLogout = () => {
-  if (confirm("确定要退出登录吗？")) {
+const handleLogout = async () => {
+  try {
+    // 替换原生confirm为Element Plus的确认弹窗
+    await ElMessageBox.confirm(
+        '确定要退出登录吗？', // 提示内容
+        '退出确认', // 弹窗标题
+        {
+          confirmButtonText: '确认退出',
+          cancelButtonText: '取消',
+          type: 'warning', // 警告类型，显示黄色图标
+          center: true // 内容居中显示
+        }
+    );
+
     // 1. 清除本地存储的所有登录相关数据
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("tokenExpireTime");
     localStorage.removeItem("tokenExpireTimestamp");
     localStorage.removeItem("rememberedUsername");
+    // 清空接口获取的用户名
+    apiUsername.value = '';
 
     // 2. 调用后端退出登录接口（可选，根据项目需求保留）
     const refreshToken = localStorage.getItem("refreshToken");
     if (refreshToken) {
-      request.post("/auth/logout", {refreshToken})
-          .then(res => {
-            console.log("后端退出登录成功：", res.data);
-          })
-          .catch(err => {
-            console.error("后端退出登录失败：", err);
-          });
+      try {
+        await request.post("/auth/logout", { refreshToken });
+        console.log("后端退出登录成功");
+        ElMessage.success('退出登录成功');
+      } catch (err) {
+        console.error("后端退出登录失败：", err);
+        ElMessage.warning('退出登录成功（后端状态未同步）');
+      }
+    } else {
+      ElMessage.success('退出登录成功');
     }
 
     // 3. 跳转到登录页
     router.push("/login");
+
+  } catch (error) {
+    console.log("用户取消退出登录");
   }
 };
 
@@ -243,10 +304,11 @@ const handleLogin = () => {
   router.push("/login")
       .then(() => {
         console.log("✅ 跳转到登录页面成功");
+        ElMessage.info('请先完成登录操作');
       })
       .catch(err => {
         console.error("❌ 跳转到登录页面失败：", err);
-        ElMessage.warning("登录页面不存在，请检查路由配置");
+        ElMessage.error('登录页面不存在，请检查路由配置');
       });
 };
 
@@ -256,10 +318,11 @@ const handleUserInfoClick = () => {
   router.push("/front/setting")
       .then(() => {
         console.log("✅ 跳转到平台设置页面成功");
+        ElMessage.info('已进入个人设置页面');
       })
       .catch(err => {
         console.error("❌ 跳转到平台设置页面失败：", err);
-        ElMessage.warning("设置页面不存在，请检查路由配置");
+        ElMessage.error('设置页面不存在，请检查路由配置');
       });
 };
 
@@ -267,7 +330,7 @@ const handleUserInfoClick = () => {
 // 1. 切换消息弹窗显示/隐藏
 const toggleMsgPopup = (e) => {
   // 阻止事件冒泡，避免弹窗意外关闭
-  e.stopPropagation();
+  if (e) e.stopPropagation();
   isMsgPopupShow.value = !isMsgPopupShow.value;
   // 弹窗显示时，加载消息列表（避免重复请求）
   if (isMsgPopupShow.value && msgList.value.length === 0) {
@@ -278,37 +341,63 @@ const toggleMsgPopup = (e) => {
 // 2. 加载消息列表（调用后端接口）
 const loadMsgList = async () => {
   try {
+    ElMessage.loading({
+      message: '正在加载消息列表...',
+      duration: 0,
+      id: 'msg-loading'
+    });
     const response = await request({
       url: "/api/msg/list",
       method: "get",
       params: {pageSize: 10} // 只加载最新10条消息
     });
+    ElMessage.close('msg-loading');
     const resData = response.data || [];
     msgList.value = resData;
     // 计算未读消息数量
     unreadMsgCount.value = resData.filter(msg => !msg.isRead).length;
+
+    if (unreadMsgCount.value > 0) {
+      ElMessage.info(`您有${unreadMsgCount.value}条未读消息`);
+    } else if (resData.length === 0) {
+      ElMessage.info('暂无系统消息');
+    }
   } catch (error) {
+    ElMessage.close('msg-loading');
     console.error("加载消息列表失败：", error);
     msgList.value = [];
+    ElMessage.error('加载消息失败，请稍后重试');
   }
 };
 
 // 3. 标记所有消息为已读
 const markAllAsRead = async (e) => {
-  e.stopPropagation();
-  if (unreadMsgCount.value === 0) return;
+  if (e) e.stopPropagation();
+  if (unreadMsgCount.value === 0) {
+    ElMessage.info('暂无未读消息');
+    return;
+  }
   try {
+    ElMessage.loading({
+      message: '正在标记已读...',
+      duration: 0,
+      id: 'msg-read-loading'
+    });
     await request({
       url: "/api/msg/all-read",
       method: "post"
     });
+    ElMessage.close('msg-read-loading');
     // 前端更新状态
     msgList.value.forEach(msg => {
       msg.isRead = true;
     });
     unreadMsgCount.value = 0;
+    ElMessage.success('所有消息已标记为已读');
   } catch (error) {
+    ElMessage.close('msg-read-loading');
     console.error("标记所有消息为已读失败：", error);
+    ElMessage.error('标记已读失败，请稍后重试');
   }
 };
 
@@ -326,6 +415,13 @@ const getMsgTypeText = (type) => {
     default:
       return "未知消息";
   }
+};
+
+// 5. 查看更多消息
+const viewMoreMsg = () => {
+  ElMessage.info('即将跳转到消息中心页面');
+  // 这里可以添加跳转到完整消息列表页面的逻辑
+  // router.push("/front/message-center");
 };
 
 // --------------- 响应式窗口适配（移动端自动折叠侧边栏） ---------------
@@ -352,11 +448,22 @@ onMounted(() => {
   window.addEventListener("resize", handleWindowResize);
   // 监听点击空白处关闭弹窗
   document.addEventListener("click", handleClickOutside);
+
+  // 登录状态下，先检查本地用户名，为空则调用接口
+  const accessToken = localStorage.getItem("accessToken");
+  const rememberedUsername = localStorage.getItem("rememberedUsername");
+  if (accessToken && !rememberedUsername) {
+    fetchUsername(); // 调用/api/getusername获取用户名
+  }
+
   // 初始化加载未读消息数量（不加载完整列表，提升性能）
   if (getUserInfo.value.hasLogin) {
     try {
       request.get("/api/msg/unread-count").then(res => {
         unreadMsgCount.value = res.data || 0;
+        if (unreadMsgCount.value > 0) {
+          ElMessage.info(`您有${unreadMsgCount.value}条未读系统消息`);
+        }
       });
     } catch (error) {
       console.error("加载未读消息数量失败：", error);
@@ -708,6 +815,7 @@ onUnmounted(() => {
   font-size: 13px;
   color: #409eff;
   transition: all 0.2s ease;
+  cursor: pointer;
 }
 
 .msg-more-link:hover {
