@@ -41,7 +41,7 @@
         <div class="sidebar-footer">
           <div class="sidebar-function-item msg-wrapper">
             <!-- 核心修改1：给按钮绑定点击事件 + .stop 阻止冒泡 -->
-            <button class="msg-btn" @click.stop="toggleMsgPopup()">
+            <button class="msg-btn" @click="toggleMsgPopup()">
               <svg viewBox="0 0 24 24" fill="#667085" class="msg-icon">
                 <path
                     d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
@@ -83,30 +83,30 @@
           <!-- 个人中心（迁移到侧边栏）- 新增点击跳转逻辑 -->
           <div
               class="sidebar-function-item user-info"
-              v-if="getUserInfo.hasLogin"
+              v-if="userInfo.hasLogin"
               @click="handleUserInfoClick()"
               :style="{cursor: 'pointer'}"
           >
             <img src="https://picsum.photos/40/40" alt="用户头像" class="user-avatar"/>
             <span class="function-text user-name" v-if="!isSidebarCollapsed">
-              {{ getUserInfo.username }}
+              {{ userInfo.username || '未知用户' }}
             </span>
           </div>
 
           <!-- 核心修改：根据登录状态动态显示 登录/退出登录 -->
           <div
               class="sidebar-function-item"
-              @click="getUserInfo.hasLogin ? handleLogout() : handleLogin()"
+              @click="userInfo.hasLogin ? handleLogout() : handleLogin()"
           >
             <button class="logout-btn">
               <svg viewBox="0 0 24 24" fill="#667085" class="logout-icon">
                 <!-- 登录/退出登录 不同的图标 -->
-                <path v-if="getUserInfo.hasLogin" d="M17 3v12h-4v-7H8v7H4V3h13m2-2H2v18h2V3h15v18h2V1z"/>
+                <path v-if="userInfo.hasLogin" d="M17 3v12h-4v-7H8v7H4V3h13m2-2H2v18h2V3h15v18h2V1z"/>
                 <path v-else d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
               </svg>
             </button>
             <span class="function-text" v-if="!isSidebarCollapsed">
-              {{ getUserInfo.hasLogin ? '退出登录' : '登录' }}
+              {{ userInfo.hasLogin ? '退出登录' : '登录' }}
             </span>
           </div>
         </div>
@@ -139,9 +139,9 @@
 </template>
 
 <script setup>
-import {ref, computed, onMounted, onUnmounted} from 'vue';
+import {ref, onMounted, onUnmounted, watch} from 'vue';
 import {useRouter} from 'vue-router';
-import {ElMessage} from 'element-plus';
+import {ElMessage, ElMessageBox} from 'element-plus';
 // 注：request 请确保你的项目中存在该工具类，若不存在可注释或替换为真实请求逻辑
 import request from '../utils/request';
 
@@ -154,12 +154,17 @@ const isSidebarCollapsed = ref(false);
 // 窗口宽度（用于响应式适配）
 const windowWidth = ref(window.innerWidth);
 
-// 新增：消息相关响应式数据
+// 消息相关响应式数据
 const isMsgPopupShow = ref(false); // 消息弹窗显示/隐藏
 const msgList = ref([]); // 消息列表
 const unreadMsgCount = ref(0); // 未读消息数量
-// 新增：存储从接口获取的用户名
-const apiUsername = ref('');
+
+// 核心修复：用户信息改为ref响应式对象（支持异步更新）
+const userInfo = ref({
+  username: '',
+  hasLogin: false,
+  tokenExpired: false // 标记token是否过期
+});
 
 // --------------- 侧边栏导航菜单配置（替换为AI检测平台核心功能） ---------------
 const navMenus = ref([
@@ -190,66 +195,65 @@ const navMenus = ref([
   }
 ]);
 
-// --------------- 计算属性：分层获取用户信息 ---------------
-const getUserInfo = computed(() => {
+// --------------- 核心修复：初始化用户信息 ---------------
+const initUserInfo = async () => {
+  // 重置用户信息
+  userInfo.value = {username: '', hasLogin: false, tokenExpired: false};
+
+  // 1. 获取本地存储的token和用户名
   const accessToken = localStorage.getItem("accessToken");
-  if (!accessToken) {
-    return {
-      username: "",
-      hasLogin: false
+  const localUsername = localStorage.getItem("username") || localStorage.getItem("rememberedUsername");
+
+  // 2. 无token直接返回未登录状态
+  if (!accessToken) return;
+
+  // 3. 检查token是否过期
+  const tokenExpireTimestamp = localStorage.getItem("tokenExpireTimestamp");
+  if (tokenExpireTimestamp && new Date().getTime() > Number(tokenExpireTimestamp)) {
+    userInfo.value.tokenExpired = true;
+    ElMessage.warning('登录状态已过期，请重新登录');
+    handleLogout(false); // 静默退出，不弹确认框
+    return;
+  }
+
+  // 4. 本地有用户名，直接使用
+  if (localUsername) {
+    userInfo.value = {
+      username: localUsername,
+      hasLogin: true,
+      tokenExpired: false
     };
+    // 异步刷新最新用户名
+    fetchUsername();
+    return;
   }
 
-  // 优先级1：本地存储的rememberedUsername
-  const rememberedUsername = localStorage.getItem("rememberedUsername");
-  if (rememberedUsername) {
-    return {
-      username: rememberedUsername,
-      hasLogin: true
-    };
-  }
+  // 5. 本地无用户名，调用接口获取
+  await fetchUsername();
+};
 
-  const userName = localStorage.getItem("username");
-  if (userName) {
-    return {
-      username: userName,
-      hasLogin: true
-    }
-  }
-
-  // 优先级2：从接口获取的用户名
-  if (apiUsername.value && !hasLogin) {
-    return {
-      username: apiUsername.value,
-      hasLogin: true
-    };
-  }
-
-  // 最终兜底：未知用户
-  return {
-    username: '未知用户',
-    hasLogin: true
-  };
-});
-
-// --------------- 新增：从接口获取用户名 ---------------
+// --------------- 从接口获取用户名 ---------------
 const fetchUsername = async () => {
   try {
     const res = await request({
-      url: "/api/getUserName", // 你的获取用户名接口
+      url: "/api/getUserName",
       method: "get"
     });
-    // 可根据实际接口返回格式调整解析逻辑
     if (res.code === 200 && res.data) {
-      apiUsername.value = res.data;
-      // 可选：将接口获取的用户名存入本地，下次无需重复请求
-      // localStorage.setItem("rememberedUsername", res.data);
+      userInfo.value.username = res.data;
+      userInfo.value.hasLogin = true;
+      // 统一本地存储key
+      localStorage.setItem("username", res.data);
       ElMessage.success(`欢迎回来，${res.data}！`);
+    } else {
+      userInfo.value.hasLogin = false;
+      ElMessage.error('获取用户信息失败：无用户数据');
     }
   } catch (error) {
     console.error("获取用户名失败：", error);
-    apiUsername.value = '';
-    ElMessage.error('获取用户信息失败，请刷新页面重试');
+    userInfo.value.hasLogin = false;
+    ElMessage.error('获取用户信息失败，请重新登录');
+    handleLogout(false);
   }
 };
 
@@ -259,57 +263,60 @@ const toggleSidebar = () => {
   ElMessage.info(isSidebarCollapsed.value ? '侧边栏已折叠' : '侧边栏已展开');
 };
 
-// --------------- 退出登录逻辑 ---------------
-const handleLogout = async () => {
-  try {
-    // 替换原生confirm为Element Plus的确认弹窗
-    await ElMessageBox.confirm(
-        '确定要退出登录吗？', // 提示内容
-        '退出确认', // 弹窗标题
-        {
-          confirmButtonText: '确认退出',
-          cancelButtonText: '取消',
-          type: 'warning', // 警告类型，显示黄色图标
-          center: true // 内容居中显示
-        }
-    );
-
-    // 1. 清除本地存储的所有登录相关数据
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("tokenExpireTime");
-    localStorage.removeItem("tokenExpireTimestamp");
-    localStorage.removeItem("rememberedUsername");
-    localStorage.removeItem("userName");
-    // 清空接口获取的用户名
-    apiUsername.value = '';
-
-    // 2. 调用后端退出登录接口（可选，根据项目需求保留）
-    const refreshToken = localStorage.getItem("refreshToken");
-    if (refreshToken) {
-      try {
-        await request.post("/auth/logout", { refreshToken });
-        console.log("后端退出登录成功");
-        ElMessage.success('退出登录成功');
-      } catch (err) {
-        console.error("后端退出登录失败：", err);
-        ElMessage.warning('退出登录成功（后端状态未同步）');
-      }
-    } else {
-      ElMessage.success('退出登录成功');
+// --------------- 退出登录逻辑（修复本地存储清除） ---------------
+const handleLogout = async (needConfirm = true) => {
+  // 需要确认时弹框
+  if (needConfirm) {
+    try {
+      await ElMessageBox.confirm(
+          '确定要退出登录吗？',
+          '退出确认',
+          {
+            confirmButtonText: '确认退出',
+            cancelButtonText: '取消',
+            type: 'warning',
+            center: true
+          }
+      );
+    } catch (error) {
+      console.log("用户取消退出登录");
+      return;
     }
-
-    // 3. 跳转到登录页
-    router.push("/login");
-
-  } catch (error) {
-    console.log("用户取消退出登录");
   }
+
+  // 1. 清除所有登录相关本地存储
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("tokenExpireTime");
+  localStorage.removeItem("tokenExpireTimestamp");
+  localStorage.removeItem("username");
+  localStorage.removeItem("rememberedUsername");
+
+  // 2. 重置用户信息
+  userInfo.value = {
+    username: '',
+    hasLogin: false,
+    tokenExpired: false
+  };
+
+  // 3. 调用后端退出接口（可选）
+  const refreshToken = localStorage.getItem("refreshToken");
+  if (refreshToken) {
+    try {
+      await request.post("/auth/logout", {refreshToken});
+      console.log("后端退出登录成功");
+    } catch (err) {
+      console.error("后端退出登录失败：", err);
+    }
+  }
+
+  // 4. 跳转登录页
+  ElMessage.success('退出登录成功');
+  router.push("/login");
 };
 
-// --------------- 新增：登录按钮点击逻辑 ---------------
+// --------------- 登录按钮点击逻辑 ---------------
 const handleLogin = () => {
-  // 跳转到登录页面
   router.push("/login")
       .then(() => {
         console.log("✅ 跳转到登录页面成功");
@@ -321,9 +328,13 @@ const handleLogin = () => {
       });
 };
 
-// --------------- 个人中心点击跳转逻辑 ---------------
+// --------------- 个人中心点击跳转逻辑（增加登录校验） ---------------
 const handleUserInfoClick = () => {
-  // 跳转到平台设置页面（对应导航菜单中的 /front/setting 路由）
+  if (!userInfo.value.hasLogin) {
+    ElMessage.warning('请先登录');
+    handleLogin();
+    return;
+  }
   router.push("/front/setting")
       .then(() => {
         console.log("✅ 跳转到平台设置页面成功");
@@ -335,35 +346,31 @@ const handleUserInfoClick = () => {
       });
 };
 
-// --------------- 新增：消息相关核心方法 ---------------
-// 1. 切换消息弹窗显示/隐藏
+// --------------- 消息相关核心方法 ---------------
+// 1. 切换消息弹窗显示/隐藏（增加登录校验）
 const toggleMsgPopup = (e) => {
-  // 阻止事件冒泡，避免弹窗意外关闭
+  if (!userInfo.value.hasLogin) {
+    ElMessage.warning('请先登录查看消息');
+    handleLogin();
+    return;
+  }
   if (e) e.stopPropagation();
   isMsgPopupShow.value = !isMsgPopupShow.value;
-  // 弹窗显示时，加载消息列表（避免重复请求）
   if (isMsgPopupShow.value && msgList.value.length === 0) {
     loadMsgList();
   }
 };
 
-// 2. 加载消息列表（调用后端接口）
+// 2. 加载消息列表
 const loadMsgList = async () => {
   try {
-    ElMessage.loading({
-      message: '正在加载消息列表...',
-      duration: 0,
-      id: 'msg-loading'
-    });
     const response = await request({
       url: "/api/msg/list",
       method: "get",
-      params: {pageSize: 10} // 只加载最新10条消息
+      params: {pageSize: 10}
     });
-    ElMessage.close('msg-loading');
     const resData = response.data || [];
     msgList.value = resData;
-    // 计算未读消息数量
     unreadMsgCount.value = resData.filter(msg => !msg.isRead).length;
 
     if (unreadMsgCount.value > 0) {
@@ -372,7 +379,6 @@ const loadMsgList = async () => {
       ElMessage.info('暂无系统消息');
     }
   } catch (error) {
-    ElMessage.close('msg-loading');
     console.error("加载消息列表失败：", error);
     msgList.value = [];
     ElMessage.error('加载消息失败，请稍后重试');
@@ -397,7 +403,6 @@ const markAllAsRead = async (e) => {
       method: "post"
     });
     ElMessage.close('msg-read-loading');
-    // 前端更新状态
     msgList.value.forEach(msg => {
       msg.isRead = true;
     });
@@ -410,7 +415,7 @@ const markAllAsRead = async (e) => {
   }
 };
 
-// 4. 获取消息类型文本（格式化显示）
+// 4. 获取消息类型文本
 const getMsgTypeText = (type) => {
   switch (type) {
     case "system":
@@ -429,23 +434,35 @@ const getMsgTypeText = (type) => {
 // 5. 查看更多消息
 const viewMoreMsg = () => {
   ElMessage.info('即将跳转到消息中心页面');
-  // 这里可以添加跳转到完整消息列表页面的逻辑
   // router.push("/front/message-center");
 };
 
-// --------------- 响应式窗口适配（移动端自动折叠侧边栏） ---------------
+// --------------- 响应式窗口适配 ---------------
 const handleWindowResize = () => {
   windowWidth.value = window.innerWidth;
-  // 移动端（小于768px）自动折叠侧边栏
   if (windowWidth.value < 768) {
     isSidebarCollapsed.value = true;
   }
 };
 
-// --------------- 点击页面空白处关闭消息弹窗（优化体验） ---------------
+// --------------- 点击空白处关闭消息弹窗 ---------------
 const handleClickOutside = (e) => {
   if (isMsgPopupShow.value && !e.target.closest(".msg-wrapper")) {
     isMsgPopupShow.value = false;
+  }
+};
+
+// --------------- 加载未读消息数量 ---------------
+const loadUnreadMsgCount = async () => {
+  if (!userInfo.value.hasLogin) return;
+  try {
+    const res = await request.get("/api/msg/unread-count");
+    unreadMsgCount.value = res.data || 0;
+    if (unreadMsgCount.value > 0) {
+      ElMessage.info(`您有${unreadMsgCount.value}条未读系统消息`);
+    }
+  } catch (error) {
+    console.error("加载未读消息数量失败：", error);
   }
 };
 
@@ -453,37 +470,28 @@ const handleClickOutside = (e) => {
 onMounted(() => {
   // 初始化窗口适配
   handleWindowResize();
-  // 监听窗口大小变化
   window.addEventListener("resize", handleWindowResize);
-  // 监听点击空白处关闭弹窗
   document.addEventListener("click", handleClickOutside);
 
-  // 登录状态下，先检查本地用户名，为空则调用接口
-  const accessToken = localStorage.getItem("accessToken");
-  const rememberedUsername = localStorage.getItem("rememberedUsername");
-  if (accessToken && !rememberedUsername) {
-    fetchUsername(); // 调用/api/getusername获取用户名
-  }
+  // 初始化用户信息
+  initUserInfo();
 
-  // 初始化加载未读消息数量（不加载完整列表，提升性能）
-  if (getUserInfo.value.hasLogin) {
-    try {
-      request.get("/api/msg/unread-count").then(res => {
-        unreadMsgCount.value = res.data || 0;
-        if (unreadMsgCount.value > 0) {
-          ElMessage.info(`您有${unreadMsgCount.value}条未读系统消息`);
+  // 监听登录状态变化，加载未读消息
+  watch(
+      () => userInfo.value.hasLogin,
+      (newVal) => {
+        if (newVal) loadUnreadMsgCount();
+        else {
+          msgList.value = [];
+          unreadMsgCount.value = 0;
         }
-      });
-    } catch (error) {
-      console.error("加载未读消息数量失败：", error);
-    }
-  }
+      },
+      {immediate: true}
+  );
 });
 
 onUnmounted(() => {
-  // 移除窗口大小变化监听
   window.removeEventListener("resize", handleWindowResize);
-  // 移除点击空白处监听
   document.removeEventListener("click", handleClickOutside);
 });
 </script>
@@ -511,7 +519,7 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* 侧边栏样式（优化视觉，贴合AI检测平台） */
+/* 侧边栏样式 */
 .layout-sidebar {
   width: 220px;
   height: 100%;
@@ -522,7 +530,7 @@ onUnmounted(() => {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  justify-content: space-between; /* 让底部功能区固定在侧边栏底部 */
+  justify-content: space-between;
 }
 
 /* 侧边栏折叠状态 */
@@ -539,7 +547,7 @@ onUnmounted(() => {
   justify-content: center;
   border-bottom: 1px solid #e1e5eb;
   padding: 0 16px;
-  background-color: #f8fafc; /* 轻微背景色，提升品牌感 */
+  background-color: #f8fafc;
   flex-shrink: 0;
 }
 
@@ -563,11 +571,11 @@ onUnmounted(() => {
 .logo-text {
   font-size: 16px;
   font-weight: 700;
-  color: #409eff; /* 主色调，突出平台名称 */
+  color: #409eff;
   white-space: nowrap;
 }
 
-/* 侧边栏导航（优化hover样式，贴合AI检测平台） */
+/* 侧边栏导航 */
 .sidebar-nav {
   padding: 16px 0;
   flex: 1;
@@ -580,7 +588,7 @@ onUnmounted(() => {
 
 .nav-item {
   width: 100%;
-  margin-bottom: 4px; /* 缩小间距，更紧凑 */
+  margin-bottom: 4px;
 }
 
 .nav-link {
@@ -595,15 +603,15 @@ onUnmounted(() => {
 }
 
 .nav-link:hover {
-  background-color: #f0f7ff; /* 主色调浅背景，贴合平台风格 */
+  background-color: #f0f7ff;
   color: #409eff;
 }
 
 .nav-link-active {
-  background-color: #e6f0ff; /* 激活态加深，突出选中 */
+  background-color: #e6f0ff;
   color: #409eff;
   font-weight: 500;
-  border-left: 2px solid #409eff; /* 左侧竖线，强化激活态 */
+  border-left: 2px solid #409eff;
   margin-left: 6px;
 }
 
@@ -618,7 +626,7 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-/* 侧边栏底部功能区（核心：整合所有迁移过来的功能） */
+/* 侧边栏底部功能区 */
 .sidebar-footer {
   width: 100%;
   padding: 16px 0;
@@ -636,7 +644,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
-  position: relative; /* 为消息弹窗提供定位上下文 */
+  position: relative;
 }
 
 .sidebar-function-item:hover {
@@ -649,7 +657,7 @@ onUnmounted(() => {
   margin-left: 12px;
 }
 
-/* 消息模块样式（适配侧边栏） */
+/* 消息模块样式 */
 .msg-wrapper {
   display: flex;
   align-items: center;
@@ -689,11 +697,11 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
-/* 消息弹窗（适配侧边栏，向右展开） */
+/* 消息弹窗 */
 .msg-popup {
   position: absolute;
   top: 0;
-  left: 100%; /* 从侧边栏右侧展开 */
+  left: 100%;
   margin-left: 8px;
   width: 380px;
   background-color: #ffffff;
@@ -832,7 +840,7 @@ onUnmounted(() => {
   text-decoration: underline;
 }
 
-/* 个人信息样式（适配侧边栏）- 新增hover样式 */
+/* 个人信息样式 */
 .user-avatar {
   width: 18px;
   height: 18px;
@@ -849,7 +857,7 @@ onUnmounted(() => {
   color: #409eff;
 }
 
-/* 退出登录/登录按钮（适配侧边栏） */
+/* 退出登录/登录按钮 */
 .logout-btn {
   background: none;
   border: none;
@@ -875,7 +883,7 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* 简化版公共头部（仅保留折叠按钮，不占用多余空间） */
+/* 简化版公共头部 */
 .layout-header {
   height: 60px;
   background-color: #ffffff;
@@ -900,7 +908,7 @@ onUnmounted(() => {
 }
 
 .header-toggle-btn:hover {
-  background-color: #f0f7ff; /* 与侧边栏hover风格统一 */
+  background-color: #f0f7ff;
 }
 
 .toggle-icon {
@@ -908,7 +916,7 @@ onUnmounted(() => {
   height: 20px;
 }
 
-/* 路由内容容器（优化内边距，更舒适） */
+/* 路由内容容器 */
 .layout-content {
   flex: 1;
   padding: 24px;
@@ -916,7 +924,7 @@ onUnmounted(() => {
   background-color: #f5f7fa;
 }
 
-/* 公共底部（优化背景色，与头部统一） */
+/* 公共底部 */
 .layout-footer {
   height: 40px;
   background-color: #ffffff;
@@ -932,7 +940,7 @@ onUnmounted(() => {
   color: #667085;
 }
 
-/* 响应式适配（移动端，优化显示） */
+/* 响应式适配（移动端） */
 @media (max-width: 768px) {
   .layout-sidebar {
     width: 64px;
