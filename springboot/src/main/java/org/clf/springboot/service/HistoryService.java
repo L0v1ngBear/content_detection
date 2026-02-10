@@ -8,6 +8,7 @@ import org.clf.springboot.dto.HistoryRequestDTO;
 import org.clf.springboot.entity.DetectHistory;
 import org.clf.springboot.mapper.DetectHistoryMapper;
 import org.clf.springboot.service.Impl.HistoryServiceImpl;
+import org.clf.springboot.utils.UserContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -32,6 +33,10 @@ public class HistoryService extends ServiceImpl<DetectHistoryMapper, DetectHisto
         }
         if (queryDTO.getEndTime() != null) {
             wrapper.le(DetectHistory::getDetectTime, queryDTO.getEndTime());
+        }
+
+        if (UserContextHolder.getUserId() != null) {
+            wrapper.eq(DetectHistory::getUserId, UserContextHolder.getUserId());
         }
 
         // 检测状态筛选

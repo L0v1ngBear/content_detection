@@ -99,5 +99,11 @@ public class UserService {
             throw new CustomException(500, "修改密码失败", e);
         }
     }
+
+    public void updateUserAvatar(Long id, String avatarUrl) {
+        User user = userMapper.selectById(id);
+        user.setAvatar(avatarUrl);
+        userMapper.updateById(user);
+    }
 }
 

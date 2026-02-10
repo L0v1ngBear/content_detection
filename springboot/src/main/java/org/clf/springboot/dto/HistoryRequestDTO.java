@@ -8,8 +8,6 @@ import java.time.LocalDateTime;
 @Data
 public class HistoryRequestDTO {
 
-    Long userId;
-
     /**
      * 页码（默认1）
      */

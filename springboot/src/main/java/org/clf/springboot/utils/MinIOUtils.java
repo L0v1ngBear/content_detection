@@ -2,6 +2,7 @@ package org.clf.springboot.utils;
 
 import io.minio.*;
 import io.minio.http.Method;
+import io.minio.messages.Bucket;
 import io.minio.messages.Item;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,9 +25,13 @@ public class MinIOUtils {
     private MinioClient minioClient;
 
     // 从配置文件中获取存储桶名称
-    @Value("${minio.bucketName}")
+    @Value("${minio.bucketName.defaultBucket}")
     private String defaultBucketName;
 
+    @Value("{minio.endpoint}")
+    private String minioEndpoint;
+
+    private static boolean pathStyleAccess = true;
     /**
      * 检查存储桶是否存在
      * @param bucketName 存储桶名称
@@ -40,17 +45,62 @@ public class MinIOUtils {
         }
     }
 
+    public void createBucket(String bucketName, boolean isPublic) {
+        try {
+            if (!bucketExists(bucketName)) {
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+                if (isPublic) {
+                    setBucketPublic(bucketName);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("创建存储桶失败", e);
+        }
+    }
+
     /**
      * 创建存储桶
      * @param bucketName 存储桶名称
      */
     public void createBucket(String bucketName) {
+        createBucket(bucketName, false);
+    }
+
+    /**
+     * 设置存储桶为公有读权限（关键：确保公开链接可访问）
+     * @param bucketName 存储桶名称
+     */
+    private void setBucketPublic(String bucketName) {
         try {
-            if (!bucketExists(bucketName)) {
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
-            }
+            // 公有读策略JSON（MinIO官方标准策略）
+            String publicReadPolicy = """
+                    {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Principal": "*",
+                                "Action": [
+                                    "s3:GetObject"
+                                ],
+                                "Resource": [
+                                    "arn:aws:s3:::%s/*"
+                                ]
+                            }
+                        ]
+                    }
+                    """.formatted(bucketName);
+
+            // 应用桶策略
+            minioClient.setBucketPolicy(
+                    SetBucketPolicyArgs.builder()
+                            .bucket(bucketName)
+                            .config(publicReadPolicy)
+                            .build()
+            );
+            System.out.println("存储桶[" + bucketName + "]已设置为公有读权限");
         } catch (Exception e) {
-            throw new RuntimeException("创建存储桶失败：" + e.getMessage(), e);
+            throw new RuntimeException("设置桶公有读权限失败：" + e.getMessage(), e);
         }
     }
 
@@ -61,7 +111,7 @@ public class MinIOUtils {
      * @return 上传成功的文件名
      */
     public String uploadFile(MultipartFile file, String objectName) {
-        return uploadFile(defaultBucketName, file, objectName);
+        return uploadFile(defaultBucketName, file, objectName, false);
     }
 
     /**
@@ -71,10 +121,10 @@ public class MinIOUtils {
      * @param objectName 存储在 MinIO 中的文件名
      * @return 上传成功的文件名
      */
-    public String uploadFile(String bucketName, MultipartFile file, String objectName) {
+    public String uploadFile(String bucketName, MultipartFile file, String objectName, Boolean isPublic) {
         try {
             // 检查存储桶是否存在，不存在则创建
-            createBucket(bucketName);
+            createBucket(bucketName, isPublic);
 
             // 上传文件
             minioClient.putObject(
@@ -219,6 +269,64 @@ public class MinIOUtils {
             );
         } catch (Exception e) {
             throw new RuntimeException("字节数组上传失败：" + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 【新增】获取文件的永久公开访问链接（需确保桶为公有读权限）
+     * @param objectName 存储在 MinIO 中的文件名
+     * @return 永久公开访问 URL
+     */
+    public String getPublicUrl(String objectName) {
+        return getPublicUrl(defaultBucketName, objectName);
+    }
+
+    /**
+     * 【新增】获取文件的永久公开访问链接（指定存储桶）
+     * @param bucketName 存储桶名称
+     * @param objectName 存储在 MinIO 中的文件名
+     * @return 永久公开访问 URL
+     */
+    public String getPublicUrl(String bucketName, String objectName) {
+        try {
+            // 校验存储桶是否存在
+            if (!bucketExists(bucketName)) {
+                throw new RuntimeException("存储桶[" + bucketName + "]不存在");
+            }
+
+            // 处理endpoint格式（移除末尾的/，避免URL拼接错误）
+            String endpoint = minioEndpoint.trim();
+            if (endpoint.endsWith("/")) {
+                endpoint = endpoint.substring(0, endpoint.length() - 1);
+            }
+
+            // 拼接公开URL（区分路径风格/虚拟主机风格）
+            String publicUrl;
+            if (pathStyleAccess) {
+                // 路径风格：http://minio:9000/bucketName/objectName
+                publicUrl = endpoint + "/" + bucketName + "/" + objectName;
+            } else {
+                // 虚拟主机风格：http://bucketName.minio:9000/objectName
+                publicUrl = endpoint.replace("://", "://" + bucketName + ".") + "/" + objectName;
+            }
+
+            // 提示：如果桶不是公有读，公开链接无法访问
+            try {
+                Bucket bucket = minioClient.listBuckets().stream()
+                        .filter(b -> b.name().equals(bucketName))
+                        .findFirst()
+                        .orElse(null);
+                if (bucket != null) {
+                    System.out.println("提示：请确保存储桶[" + bucketName + "]已设置为公有读权限，否则公开链接无法访问");
+                }
+            } catch (Exception e) {
+                // 非核心异常，不影响URL生成，仅打印日志
+                System.err.println("校验桶权限时发生异常：" + e.getMessage());
+            }
+
+            return publicUrl;
+        } catch (Exception e) {
+            throw new RuntimeException("生成公开访问链接失败：" + e.getMessage(), e);
         }
     }
 }

@@ -15,7 +15,6 @@ import lombok.Setter;
 @Getter
 public class Result {
     // HTTP状态码（如200成功、401未授权、403禁止访问、500服务器异常）
-    private int httpStatus;
     // 业务码（区分具体业务异常，比如40101=Token过期、5001=数据库异常）
     private int code;
     // 提示信息
@@ -29,7 +28,6 @@ public class Result {
      */
     public static Result success() {
         Result result = new Result();
-        result.setHttpStatus(200); // 默认HTTP成功状态码
         result.setCode(200);
         result.setMsg("success");
         return result;
@@ -49,7 +47,6 @@ public class Result {
      */
     public static Result error() {
         Result result = new Result();
-        result.setHttpStatus(500); // 默认HTTP服务器错误
         result.setCode(500);
         result.setMsg("系统异常");
         return result;
@@ -60,7 +57,6 @@ public class Result {
      */
     public static Result error(int code, String msg) {
         Result result = new Result();
-        result.setHttpStatus(500); // 默认HTTP 500
         result.setCode(code);
         result.setMsg(msg);
         return result;
@@ -71,7 +67,6 @@ public class Result {
      */
     public static Result error(String msg) {
         Result result = new Result();
-        result.setHttpStatus(500);
         result.setCode(500);
         result.setMsg(msg);
         return result;
@@ -79,7 +74,6 @@ public class Result {
 
     public static Result success(int code, String msg, Object data) {
         Result result = new Result();
-        result.setHttpStatus(200);
         result.setCode(code);
         result.setMsg(msg);
         result.setData(data);
@@ -93,7 +87,6 @@ public class Result {
      */
     public static Result success(int httpStatus, int code, String msg, Object data) {
         Result result = new Result();
-        result.setHttpStatus(httpStatus);
         result.setCode(code);
         result.setMsg(msg);
         result.setData(data);
@@ -105,7 +98,6 @@ public class Result {
      */
     public static Result error(int httpStatus, int code, String msg) {
         Result result = new Result();
-        result.setHttpStatus(httpStatus);
         result.setCode(code);
         result.setMsg(msg);
         result.setData(null);
@@ -118,7 +110,6 @@ public class Result {
      */
     public static Result error(int httpStatus, int code, String msg, Object data) {
         Result result = new Result();
-        result.setHttpStatus(httpStatus);
         result.setCode(code);
         result.setMsg(msg);
         result.setData(data);
@@ -142,7 +133,6 @@ public class Result {
             case 2 -> 200; // 2xx业务码 → HTTP 200（极少用，枚举一般是异常）
             default -> 500; // 默认服务器错误
         };
-        result.setHttpStatus(httpStatus);
         result.setCode(resultCode.getCode());
         result.setMsg(resultCode.getMsg());
         result.setData(null);
@@ -152,9 +142,8 @@ public class Result {
     /**
      * 重载：枚举 + 自定义HTTP状态码 + 数据
      */
-    public static Result error(ResultCodeEnum resultCode, int httpStatus, Object data) {
+    public static Result error(ResultCodeEnum resultCode, Object data) {
         Result result = error(resultCode);
-        result.setHttpStatus(httpStatus); // 覆盖默认HTTP状态码
         result.setData(data);
         return result;
     }

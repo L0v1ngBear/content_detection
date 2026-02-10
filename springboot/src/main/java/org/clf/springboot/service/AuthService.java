@@ -3,6 +3,7 @@ package org.clf.springboot.service;
 import jakarta.annotation.Resource;
 import org.clf.springboot.dto.LoginRequestDTO;
 import org.clf.springboot.dto.LoginResponseDTO;
+import org.clf.springboot.entity.User;
 import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.loginStrategy.LoginStrategy;
 import org.clf.springboot.loginStrategy.LoginStrategyFactory;
@@ -36,8 +37,11 @@ public class AuthService {
 
         String accessToken = tokenUtils.createAccessToken(userId);
         String refreshToken = tokenUtils.createRefreshToken(userId);
+
+        User user;
+
         try {
-            userMapper.selectById(userId);
+            user = userMapper.selectById(userId);
         } catch (Exception e) {
             throw new CustomException(400, e.getMessage());
         }
@@ -45,7 +49,7 @@ public class AuthService {
         loginResponseDTO.setAccessToken(accessToken);
         loginResponseDTO.setRefreshToken(refreshToken);
         loginResponseDTO.setExpireTime(7200L);
-
+        loginRequestDTO.setUsername(user.getUsername());
         return loginResponseDTO;
     }
 

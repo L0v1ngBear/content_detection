@@ -1,6 +1,5 @@
 package org.clf.springboot.controller;
 
-import cn.hutool.db.PageResult;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -14,7 +13,6 @@ import org.clf.springboot.entity.Msg;
 import org.clf.springboot.entity.User;
 import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.service.HistoryService;
-import org.clf.springboot.service.UserService;
 import org.clf.springboot.service.WebService;
 import org.clf.springboot.utils.UserContextHolder;
 import org.slf4j.Logger;
@@ -46,10 +44,6 @@ public class WebController {
     @GetMapping("/history/review/picture")
     public Result getHistoryPicture(HistoryRequestDTO queryDTO)    {
         try {
-
-            if (!queryDTO.getUserId().equals(UserContextHolder.getUserId())) {
-                throw new CustomException("用户操作非法");
-            }
             // 1. 校验页码和页大小
             if (queryDTO.getPageNum() < 1) {
                 queryDTO.setPageNum(1);
@@ -57,7 +51,6 @@ public class WebController {
             if (queryDTO.getPageSize() < 1) {
                 queryDTO.setPageSize(10);
             }
-
             // 2. 调用Service查询
             IPage<DetectHistory> pageResult = historyService.getHistoryByUserId(queryDTO);
 

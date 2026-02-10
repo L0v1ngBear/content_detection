@@ -9,6 +9,8 @@ public class DetectHistory {
 
     private Long id;
 
+    private Long userId;
+
     private String name;
 
     private Date detectTime;
