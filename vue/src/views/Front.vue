@@ -209,8 +209,16 @@ const getUserInfo = computed(() => {
     };
   }
 
+  const userName = localStorage.getItem("username");
+  if (userName) {
+    return {
+      username: userName,
+      hasLogin: true
+    }
+  }
+
   // 优先级2：从接口获取的用户名
-  if (apiUsername.value) {
+  if (apiUsername.value && !hasLogin) {
     return {
       username: apiUsername.value,
       hasLogin: true
@@ -272,6 +280,7 @@ const handleLogout = async () => {
     localStorage.removeItem("tokenExpireTime");
     localStorage.removeItem("tokenExpireTimestamp");
     localStorage.removeItem("rememberedUsername");
+    localStorage.removeItem("userName");
     // 清空接口获取的用户名
     apiUsername.value = '';
 

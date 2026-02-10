@@ -25,13 +25,6 @@
         </button>
         <button
             class="tab-nav-item"
-            :class="{ active: activeTab === 'detectConfig' }"
-            @click="activeTab = 'detectConfig'"
-        >
-          检测配置
-        </button>
-        <button
-            class="tab-nav-item"
             :class="{ active: activeTab === 'storageConfig' }"
             @click="activeTab = 'storageConfig'"
         >
@@ -47,21 +40,9 @@
         </button>
       </div>
 
-      <!-- 个人信息面板 -->
+      <!-- 个人信息面板 - 已移除用户ID -->
       <div class="tab-panel" v-if="activeTab === 'userInfo'">
-        <!-- 原有代码不变 -->
         <div class="setting-form-box">
-          <div class="form-item">
-            <label class="form-label">用户ID：</label>
-            <input
-                type="text"
-                v-model="userInfoForm.userId"
-                class="form-input"
-                disabled
-                placeholder="系统自动生成"
-            />
-          </div>
-
           <div class="form-item">
             <label class="form-label">用户名：</label>
             <input
@@ -122,7 +103,6 @@
 
       <!-- 密码修改面板 -->
       <div class="tab-panel" v-if="activeTab === 'password'">
-        <!-- 原有代码不变 -->
         <div class="setting-form-box">
           <div class="form-item">
             <label class="form-label">原密码：</label>
@@ -160,71 +140,8 @@
         </div>
       </div>
 
-      <!-- 检测配置面板 -->
-      <div class="tab-panel" v-if="activeTab === 'detectConfig'">
-        <!-- 原有代码不变 -->
-        <div class="setting-form-box">
-          <div class="form-item">
-            <label class="form-label">AI检测阈值：</label>
-            <div class="input-number-box">
-              <input
-                  type="number"
-                  v-model="detectConfigForm.aiThreshold"
-                  class="form-input number-input"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  placeholder="0.0"
-              />
-              <span class="unit">%</span>
-            </div>
-            <p class="form-tip">AI概率超过该值将判定为违规，需人工审核（默认50%）</p>
-          </div>
-
-          <div class="form-item">
-            <label class="form-label">图片过期天数：</label>
-            <div class="input-number-box">
-              <input
-                  type="number"
-                  v-model="detectConfigForm.imgExpireDays"
-                  class="form-input number-input"
-                  min="1"
-                  max="30"
-                  placeholder="7"
-              />
-              <span class="unit">天</span>
-            </div>
-            <p class="form-tip">超过该天数的图片将自动清理（默认7天）</p>
-          </div>
-
-          <div class="form-item">
-            <label class="form-label">默认检测类型：</label>
-            <select v-model="detectConfigForm.defaultDetectType" class="form-select">
-              <option value="image">图片检测</option>
-              <option value="video">视频检测</option>
-            </select>
-          </div>
-
-          <div class="form-item">
-            <label class="form-label">自动审核开关：</label>
-            <div class="switch-box">
-              <label class="switch">
-                <input type="checkbox" v-model="detectConfigForm.autoReview" />
-                <span class="switch-slider"></span>
-              </label>
-              <span class="switch-text">{{ detectConfigForm.autoReview ? '开启' : '关闭' }}</span>
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button class="btn submit-btn" @click="submitDetectConfig">保存配置</button>
-          </div>
-        </div>
-      </div>
-
       <!-- 存储配置面板 -->
       <div class="tab-panel" v-if="activeTab === 'storageConfig'">
-        <!-- 原有代码不变 -->
         <div class="setting-form-box">
           <div class="form-item">
             <label class="form-label">文件存储方式：</label>
@@ -259,7 +176,7 @@
         </div>
       </div>
 
-      <!-- 新增API访问密钥面板 -->
+      <!-- API访问密钥面板 -->
       <div class="tab-panel" v-if="activeTab === 'apiKey'">
         <!-- 密钥生成区域 -->
         <div class="api-key-generate-box">
@@ -422,9 +339,8 @@ export default {
     const loading = ref(false);
     const generating = ref(false); // 密钥生成中状态
 
-    // 个人信息表单
+    // 个人信息表单 - 已移除userId字段
     const userInfoForm = reactive({
-      userId: '',
       username: '',
       phone: '',
       email: '',
@@ -438,14 +354,6 @@ export default {
       confirmPassword: ''
     });
 
-    // 检测配置表单
-    const detectConfigForm = reactive({
-      aiThreshold: 50.0,
-      imgExpireDays: 7,
-      defaultDetectType: 'image',
-      autoReview: true
-    });
-
     // 存储配置（只读）
     const storageConfig = reactive({
       maxFileSize: 100,
@@ -454,7 +362,7 @@ export default {
       usedPercent: 0
     });
 
-    // 新增：API密钥相关
+    // API密钥相关
     const apiKeyForm = reactive({
       keyName: '',
       expireDays: 30 // 默认30天有效期
@@ -474,15 +382,9 @@ export default {
           method: 'get',
           timeout: 10000
         });
-        Object.assign(userInfoForm, userRes.data);
-
-        // 获取检测配置
-        const detectRes = await request({
-          url: '/api/config/detect',
-          method: 'get',
-          timeout: 10000
-        });
-        Object.assign(detectConfigForm, detectRes.data);
+        // 赋值时排除userId，仅赋值需要的字段
+        const { username, phone, email, avatar } = userRes.data;
+        Object.assign(userInfoForm, { username, phone, email, avatar });
 
         // 获取存储配置
         const storageRes = await request({
@@ -511,7 +413,7 @@ export default {
       }
     };
 
-    // 新增：加载API密钥列表
+    // 加载API密钥列表
     const loadApiKeyList = async () => {
       try {
         const res = await request({
@@ -526,7 +428,7 @@ export default {
       }
     };
 
-    // 新增：生成API密钥
+    // 生成API密钥
     const generateApiKey = async () => {
       if (!apiKeyForm.keyName) {
         ElMessage.warning('请输入密钥名称');
@@ -560,7 +462,7 @@ export default {
       }
     };
 
-    // 新增：复制到剪贴板
+    // 复制到剪贴板
     const copyToClipboard = (text) => {
       navigator.clipboard.writeText(text).then(() => {
         ElMessage.success('复制成功！');
@@ -576,13 +478,13 @@ export default {
       });
     };
 
-    // 新增：掩码处理AccessKey（只显示前8位和后4位）
+    // 掩码处理AccessKey（只显示前8位和后4位）
     const maskAccessKey = (accessKey) => {
       if (!accessKey) return '';
       return accessKey.substring(0, 8) + '****************' + accessKey.substring(accessKey.length - 4);
     };
 
-    // 新增：格式化时间
+    // 格式化时间
     const formatTime = (timestamp) => {
       if (!timestamp) return '未知时间';
       const date = new Date(timestamp);
@@ -596,7 +498,7 @@ export default {
       });
     };
 
-    // 新增：切换密钥状态（启用/禁用）
+    // 切换密钥状态（启用/禁用）
     const toggleKeyStatus = async (keyId) => {
       try {
         loading.value = true;
@@ -619,7 +521,7 @@ export default {
       }
     };
 
-    // 新增：重置API密钥
+    // 重置API密钥
     const resetApiKey = async (keyId) => {
       ElMessageBox.confirm(
           '重置密钥将生成新的Secret Key，原密钥将立即失效，是否确认？',
@@ -654,7 +556,7 @@ export default {
       });
     };
 
-    // 新增：删除API密钥
+    // 删除API密钥
     const deleteApiKey = async (keyId) => {
       ElMessageBox.confirm(
           '删除密钥后将无法恢复，相关接口调用将失效，是否确认删除？',
@@ -813,39 +715,6 @@ export default {
       }
     };
 
-    // 提交检测配置修改
-    const submitDetectConfig = async () => {
-      // 表单校验
-      if (detectConfigForm.aiThreshold < 0 || detectConfigForm.aiThreshold > 100) {
-        ElMessage.warning('AI检测阈值请设置0-100之间的数值');
-        return;
-      }
-      if (detectConfigForm.imgExpireDays < 1 || detectConfigForm.imgExpireDays > 30) {
-        ElMessage.warning('图片过期天数请设置1-30天之间');
-        return;
-      }
-
-      try {
-        loading.value = true;
-        const res = await request({
-          url: '/api/config/detect/update',
-          method: 'post',
-          data: detectConfigForm,
-          timeout: 10000
-        });
-        if (res.code === 200) {
-          ElMessage.success('检测配置保存成功！');
-        } else {
-          ElMessage.error(res.msg || '保存失败');
-        }
-      } catch (error) {
-        console.error('保存检测配置失败：', error);
-        ElMessage.error('保存失败，请重试');
-      } finally {
-        loading.value = false;
-      }
-    };
-
     // 页面挂载初始化
     onMounted(() => {
       initData();
@@ -858,7 +727,6 @@ export default {
       generating,
       userInfoForm,
       passwordForm,
-      detectConfigForm,
       storageConfig,
       apiKeyForm,
       apiKeyList,
@@ -867,7 +735,6 @@ export default {
       handleAvatarUpload,
       submitUserInfo,
       submitPassword,
-      submitDetectConfig,
       generateApiKey,
       copyToClipboard,
       maskAccessKey,
@@ -925,7 +792,7 @@ export default {
   display: flex;
   background-color: #e6f7ff;
   border-bottom: 1px solid #409eff;
-  flex-wrap: wrap; /* 适配新增选项卡，自动换行 */
+  flex-wrap: wrap; /* 适配选项卡，自动换行 */
 }
 
 .tab-nav-item {
@@ -994,22 +861,6 @@ export default {
 .form-input:disabled {
   background-color: #f5f7fa;
   color: #909399;
-}
-
-/* 数字输入框 */
-.input-number-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.number-input {
-  width: 100px;
-}
-
-.unit {
-  font-size: 14px;
-  color: #4e5d78;
 }
 
 /* 下拉选择框 */
@@ -1093,63 +944,6 @@ export default {
   color: #ffffff;
 }
 
-/* 开关样式 */
-.switch-box {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 40px;
-  height: 22px;
-}
-
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.switch-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #ccc;
-  transition: .4s;
-  border-radius: 22px;
-}
-
-.switch-slider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 2px;
-  bottom: 2px;
-  background-color: white;
-  transition: .4s;
-  border-radius: 50%;
-}
-
-input:checked + .switch-slider {
-  background-color: #409eff;
-}
-
-input:checked + .switch-slider:before {
-  transform: translateX(18px);
-}
-
-.switch-text {
-  font-size: 14px;
-  color: #4e5d78;
-}
-
 /* 进度条样式 */
 .progress-box {
   display: flex;
@@ -1197,7 +991,7 @@ input:checked + .switch-slider:before {
   text-align: center;
 }
 
-/* 按钮通用样式 - 复用历史页样式 */
+/* 按钮通用样式 */
 .btn {
   padding: 8px 16px;
   border-radius: 8px;
@@ -1225,7 +1019,7 @@ input:checked + .switch-slider:before {
   cursor: not-allowed;
 }
 
-/* 新增：API密钥相关样式 */
+/* API密钥相关样式 */
 .api-key-generate-box {
   background-color: #ffffff;
   padding: 24px;
@@ -1497,7 +1291,7 @@ input:checked + .switch-slider:before {
   color: #909399;
 }
 
-/* 加载状态（复用历史页样式） */
+/* 加载状态 */
 .history-loading {
   display: flex;
   flex-direction: column;
@@ -1530,7 +1324,7 @@ input:checked + .switch-slider:before {
   }
 }
 
-/* 响应式适配 - 与历史页保持一致 */
+/* 响应式适配 */
 @media (max-width: 1024px) {
   .setting-container {
     max-width: 100%;

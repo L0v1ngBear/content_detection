@@ -14,21 +14,27 @@
             @drop.prevent="handleDrop"
             :class="{ 'drag-over': dragOver }"
         >
-          <input
-              ref="fileInputRef"
-              type="file"
-              accept="image/jpg,image/jpeg,image/png,image/webp"
-              class="file-input"
-              @change="handleImageChange"
-          />
+          <!-- 重构上传按钮区域，将文件输入框限定在按钮容器内 -->
           <div class="upload-icon-wrapper">
             <svg class="upload-icon" viewBox="0 0 24 24" width="40" height="40">
               <path fill="#4f46e5" d="M12 16q1.25 0 2.125-.875T15 13q0-1.25-.875-2.125T12 10q-1.25 0-2.125.875T9 13q0 1.25.875 2.125T12 16Zm0-6q.412 0 .707-.294T13 9q0-.412-.293-.706T12 8q-.412 0-.707.294T11 9q0 .412.293.706T12 10Zm0 7q-2.075 0-3.537-1.463T7 18q0-.825.437-1.512T9 15.5q.412-.175.65-.55t.237-.75q0-.412-.293-.706T9 13q-.825 0-1.512.437T7 15q.825 0 1.512-.437T12 16Zm0-11q-2.5 0-4.25 1.75T6 11v6q0 1.25.875 2.125T9 21h6q1.25 0 2.125-.875T18 18v-6q0-2.5-1.75-4.25T12 6Zm0 2q1.5 0 2.5 1t1 2.5v6q0 .412-.293.706T14 17h-4q-.412 0-.707-.294T9 16v-6q0-1.5 1-2.5t2.5-1Z"/>
             </svg>
           </div>
-          <button class="upload-btn" @click="triggerFileInput" :disabled="isDetecting || !isLogin">
-            上传图片检测
-          </button>
+
+          <!-- 关键修改：将文件输入框放到按钮容器内 -->
+          <div class="upload-btn-container">
+            <input
+                ref="fileInputRef"
+                type="file"
+                accept="image/jpg,image/jpeg,image/png,image/webp"
+                class="file-input"
+                @change="handleImageChange"
+            />
+            <button class="upload-btn" @click="triggerFileInput" :disabled="isDetecting || !isLogin">
+              上传图片检测
+            </button>
+          </div>
+
           <p class="tips">{{ dragOver ? '释放上传' : '支持拖拽/点击' }}</p>
           <!-- 未登录提示文字 -->
           <p class="login-tips" v-if="!isLogin">请先登录后再使用检测功能</p>
@@ -465,6 +471,40 @@ export default {
       }
     };
 
+    // 轮询获取结果（备用方案）
+    const startPollingResult = () => {
+      if (!taskId.value || isDetecting() === false) return;
+
+      // 每3秒轮询一次，最多轮询20次（60秒）
+      let pollCount = 0;
+      const maxPollCount = 20;
+
+      messageQueueListener.value = setInterval(async () => {
+        pollCount++;
+        if (pollCount >= maxPollCount) {
+          detectResult.detectStatus = 'error';
+          detectResult.detectMsg = '检测超时，请重试！';
+          stopMessageQueueListening();
+          return;
+        }
+
+        try {
+          const response = await request({
+            url: '/review/picture/result',
+            method: 'get',
+            params: { taskId: taskId.value }
+          });
+
+          if (response && response.data && response.data.status === 'completed') {
+            handleMessageQueueResult(response.data.result);
+            stopMessageQueueListening();
+          }
+        } catch (error) {
+          console.error('轮询获取结果失败：', error);
+        }
+      }, 3000);
+    };
+
     // 清空所有记录（增加登录校验）
     const clearAllRecords = () => {
       // 未登录拦截
@@ -578,15 +618,25 @@ export default {
   padding: 30px 16px;
   text-align: center;
   transition: all 0.2s;
-  cursor: pointer;
+  cursor: default; /* 修改光标样式，不再是pointer */
   background-color: #ffffff;
+  position: relative; /* 相对定位，确保子元素绝对定位时基于此容器 */
 }
 
 .upload-area.drag-over {
   border-color: #4f46e5;
   background-color: #f5f3ff;
+  cursor: copy; /* 拖拽时显示复制光标 */
 }
 
+/* 关键修改：上传按钮容器 */
+.upload-btn-container {
+  position: relative; /* 相对定位 */
+  display: inline-block; /* 仅包裹按钮大小 */
+  margin-bottom: 8px;
+}
+
+/* 关键修改：文件输入框样式 */
 .file-input {
   position: absolute;
   top: 0;
@@ -610,9 +660,10 @@ export default {
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
-  margin-bottom: 8px;
   font-weight: 500;
   transition: all 0.2s;
+  position: relative; /* 按钮相对定位，确保在文件输入框上方 */
+  z-index: 2;
 }
 
 .upload-btn:disabled {

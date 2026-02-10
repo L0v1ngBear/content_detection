@@ -369,9 +369,13 @@ const validateForm = () => {
  */
 const handleLoginSuccess = (loginResponse) => {
   // 1. 提取后端 LoginResponseDTO 中的核心数据（解构赋值，更清晰）
-  const {accessToken, refreshToken, expireTime} = loginResponse.data || {};
+  const {userName, accessToken, refreshToken, expireTime} = loginResponse.data || {};
 
   // 2. 存储 JWT Access Token（必要，后续接口请求需携带该令牌）
+  if (userName) {
+    localStorage.setItem("userName", userName);
+  }
+
   if (accessToken) {
     localStorage.setItem("accessToken", accessToken);
     console.log("Access Token 已存储：", accessToken);
