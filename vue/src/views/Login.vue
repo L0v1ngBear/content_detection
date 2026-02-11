@@ -315,8 +315,6 @@ const handleLogin = async () => {
   } catch (error) {
     // 5. 登录失败处理（捕获后端校验/业务错误）
     console.error("登录请求失败：", error);
-    const errorMsg = error.message;
-    ElMessage.error(errorMsg);
 
   } finally {
     // 6. 重置提交状态

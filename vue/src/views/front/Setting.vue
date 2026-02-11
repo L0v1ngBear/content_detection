@@ -378,7 +378,7 @@ export default {
 
         // 获取个人信息
         const userRes = await request({
-          url: '/api/user/info',
+          url: 'user/info',
           method: 'get',
           timeout: 10000
         });

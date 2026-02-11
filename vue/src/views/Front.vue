@@ -39,9 +39,10 @@
 
         <!-- 侧边栏底部功能区（整合消息、个人中心、退出登录） -->
         <div class="sidebar-footer">
-          <div class="sidebar-function-item msg-wrapper">
-            <!-- 核心修改1：给按钮绑定点击事件 + .stop 阻止冒泡 -->
-            <button class="msg-btn" @click="toggleMsgPopup()">
+          <!-- 系统消息模块 - 核心优化 -->
+          <div class="sidebar-function-item msg-wrapper" @click.stop="toggleMsgPopup()">
+            <!-- 消息按钮 -->
+            <button class="msg-btn" @click.stop>
               <svg viewBox="0 0 24 24" fill="#667085" class="msg-icon">
                 <path
                     d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
@@ -49,33 +50,47 @@
               <!-- 未读消息红点（有未读时显示） -->
               <span class="msg-badge" v-if="unreadMsgCount > 0">{{ unreadMsgCount }}</span>
             </button>
-            <!-- 核心修改2：给文字也绑定点击事件 + .stop -->
-            <span class="function-text" v-if="!isSidebarCollapsed" @click.stop="toggleMsgPopup()">系统消息</span>
-            <!-- 消息弹窗（切换显示/隐藏，适配侧边栏位置） -->
-            <!-- 核心修改3：给弹窗加 @click.stop 防止点击弹窗内触发外层事件 -->
-            <div class="msg-popup" v-if="isMsgPopupShow" @click.stop>
+            <!-- 消息文字 -->
+            <span class="function-text" v-if="!isSidebarCollapsed">系统消息</span>
+
+            <!-- 消息弹窗（核心优化：增加z-index、定位、内容展示） -->
+            <div class="msg-popup" v-show="isMsgPopupShow" @click.stop>
               <!-- 弹窗头部 -->
               <div class="msg-popup-header">
                 <h3 class="popup-title">系统消息</h3>
-                <button class="popup-clear-btn" @click="markAllAsRead()" :disabled="unreadMsgCount === 0">
+                <button class="popup-clear-btn" @click.stop="markAllAsRead()" :disabled="unreadMsgCount === 0">
                   标为已读
                 </button>
               </div>
-              <!-- 弹窗内容（消息列表） -->
+
+              <!-- 弹窗内容（消息列表 - 优化内容展示） -->
               <div class="msg-popup-content">
                 <div class="msg-empty" v-if="msgList.length === 0">
+                  <svg viewBox="0 0 24 24" fill="#dcdfe6" class="empty-icon">
+                    <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                  </svg>
                   <p>暂无系统消息</p>
                 </div>
+
+                <!-- 消息项 - 优化样式，展示完整内容 -->
                 <div class="msg-item" v-for="(msg, index) in msgList" :key="index"
-                     :class="{ 'msg-unread': !msg.isRead }">
-                  <div class="msg-item-time">{{ msg.createTime }}</div>
-                  <div class="msg-item-content">{{ msg.content }}</div>
-                  <div class="msg-item-type" :class="msg.type">{{ getMsgTypeText(msg.type) }}</div>
+                     :class="{ 'msg-unread': !msg.isRead }"
+                     @click.stop="viewMsgDetail(msg)">
+                  <div class="msg-item-header">
+                    <span class="msg-item-type" :class="msg.type">{{ getMsgTypeText(msg.type) }}</span>
+                    <span class="msg-item-time">{{ formatTime(msg.createTime) }}</span>
+                  </div>
+                  <div class="msg-item-content">
+                    {{ msg.content }}
+                  </div>
+                  <!-- 已读/未读标记 -->
+                  <div class="msg-read-tag" v-if="!msg.isRead">未读</div>
                 </div>
               </div>
+
               <!-- 弹窗底部 -->
               <div class="msg-popup-footer">
-                <a href="javascript:;" class="msg-more-link" @click="viewMoreMsg()">查看更多消息</a>
+                <a href="javascript:;" class="msg-more-link" @click.stop="viewMoreMsg()">查看更多消息</a>
               </div>
             </div>
           </div>
@@ -84,7 +99,7 @@
           <div
               class="sidebar-function-item user-info"
               v-if="userInfo.hasLogin"
-              @click="handleUserInfoClick()"
+              @click.stop="handleUserInfoClick()"
               :style="{cursor: 'pointer'}"
           >
             <img src="https://picsum.photos/40/40" alt="用户头像" class="user-avatar"/>
@@ -93,14 +108,13 @@
             </span>
           </div>
 
-          <!-- 核心修改：根据登录状态动态显示 登录/退出登录 -->
+          <!-- 登录/退出登录 -->
           <div
               class="sidebar-function-item"
-              @click="userInfo.hasLogin ? handleLogout() : handleLogin()"
+              @click.stop="userInfo.hasLogin ? handleLogout() : handleLogin()"
           >
-            <button class="logout-btn">
+            <button class="logout-btn" @click.stop>
               <svg viewBox="0 0 24 24" fill="#667085" class="logout-icon">
-                <!-- 登录/退出登录 不同的图标 -->
                 <path v-if="userInfo.hasLogin" d="M17 3v12h-4v-7H8v7H4V3h13m2-2H2v18h2V3h15v18h2V1z"/>
                 <path v-else d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
               </svg>
@@ -116,8 +130,7 @@
       <div class="layout-main">
         <!-- 简化版公共头部（仅保留折叠按钮） -->
         <header class="layout-header">
-          <!-- 侧边栏折叠/展开按钮 -->
-          <button class="header-toggle-btn" @click="toggleSidebar()">
+          <button class="header-toggle-btn" @click.stop="toggleSidebar()">
             <svg viewBox="0 0 24 24" fill="#667085" class="toggle-icon">
               <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
             </svg>
@@ -129,12 +142,54 @@
           <router-view/>
         </main>
 
-        <!-- 公共底部（替换为AI检测平台版权信息） -->
+        <!-- 公共底部 -->
         <footer class="layout-footer">
           <p class="footer-text">© 2026 AI 内容检测平台 - 版权所有</p>
         </footer>
       </div>
     </div>
+
+    <!-- 消息详情弹窗（新增） -->
+    <teleport to="body">
+      <div class="msg-detail-mask" v-if="showMsgDetail" @click.stop="closeMsgDetail()">
+        <div class="msg-detail-popup" @click.stop>
+          <div class="msg-detail-header">
+            <h3>{{ currentMsg?.type ? getMsgTypeText(currentMsg.type) : '消息详情' }}</h3>
+            <button class="close-btn" @click.stop="closeMsgDetail()">×</button>
+          </div>
+          <div class="msg-detail-content">
+            <div class="detail-item">
+              <label>消息类型：</label>
+              <span :class="`type-tag ${currentMsg?.type}`">{{ getMsgTypeText(currentMsg?.type) }}</span>
+            </div>
+            <div class="detail-item">
+              <label>发送时间：</label>
+              <span>{{ formatTime(currentMsg?.createTime) }}</span>
+            </div>
+            <div class="detail-item">
+              <label>消息状态：</label>
+              <span class="status-tag" :class="currentMsg?.isRead ? 'read' : 'unread'">
+                {{ currentMsg?.isRead ? '已读' : '未读' }}
+              </span>
+            </div>
+            <div class="detail-item content-item">
+              <label>消息内容：</label>
+              <div class="content-text">{{ currentMsg?.content || '无消息内容' }}</div>
+            </div>
+          </div>
+          <div class="msg-detail-footer">
+            <button class="btn cancel-btn" @click.stop="closeMsgDetail()">关闭</button>
+            <button
+                class="btn confirm-btn"
+                @click.stop="markSingleMsgRead()"
+                v-if="currentMsg && !currentMsg.isRead"
+            >
+              标记为已读
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -142,97 +197,88 @@
 import {ref, onMounted, onUnmounted, watch} from 'vue';
 import {useRouter} from 'vue-router';
 import {ElMessage, ElMessageBox} from 'element-plus';
-// 注：request 请确保你的项目中存在该工具类，若不存在可注释或替换为真实请求逻辑
 import request from '../utils/request';
 
-// --------------- 路由实例 ---------------
+// 路由实例
 const router = useRouter();
 
-// --------------- 响应式数据 ---------------
-// 侧边栏折叠/展开状态
+// 响应式数据
 const isSidebarCollapsed = ref(false);
-// 窗口宽度（用于响应式适配）
 const windowWidth = ref(window.innerWidth);
-
-// 消息相关响应式数据
 const isMsgPopupShow = ref(false); // 消息弹窗显示/隐藏
 const msgList = ref([]); // 消息列表
 const unreadMsgCount = ref(0); // 未读消息数量
 
-// 核心修复：用户信息改为ref响应式对象（支持异步更新）
+// 新增：消息详情相关
+const showMsgDetail = ref(false); // 是否显示消息详情弹窗
+const currentMsg = ref(null); // 当前选中的消息
+
+// 用户信息
 const userInfo = ref({
   username: '',
   hasLogin: false,
-  tokenExpired: false // 标记token是否过期
+  tokenExpired: false
 });
 
-// --------------- 侧边栏导航菜单配置（替换为AI检测平台核心功能） ---------------
+// 侧边栏导航菜单配置
 const navMenus = ref([
   {
-    path: "/front/home", // 对应首页路由（完整路径）
+    path: "/front/home",
     name: "检测首页",
-    iconPath: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z" // 首页图标
+    iconPath: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8h5z"
   },
   {
-    path: "/front/picture", // 图片检测路由
+    path: "/front/picture",
     name: "图片AI检测",
-    iconPath: "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" // 图片图标
+    iconPath: "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"
   },
   {
-    path: "/front/video", // 视频检测路由
+    path: "/front/video",
     name: "视频AI检测",
-    iconPath: "M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" // 视频图标
+    iconPath: "M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"
   },
   {
-    path: "/front/history", // 历史记录路由
+    path: "/front/history",
     name: "检测历史记录",
-    iconPath: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 21l4-4 4 4v-6.17l-2-2V13l2.81-2.81c.39-.39.39-1.02 0-1.41l-2.59-2.59c.39-.39 1.02-.39 1.41 0L12 10.59 9.19 7.79c-.39-.39-1.02-.39-1.41 0L5 10.59c-.39.39-.39 1.02 0 1.41L7.81 14 5 16.81c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 17.41l2.81 2.81c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0 1.41L14.19 14 17 11.19V13c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v1.59L13 7.41 10.19 10.21c-.39-.39-1.02-.39-1.41 0L6 7.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 9 19 11.19V5h-2v1.59L13 9.41 10.19 6.6c-.39-.39-1.02-.39-1.41 0L6 9.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 16.59 14.81 19.4c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0-1.41L16.81 13H19v6h-2v-1.59L13 10.59 10.19 13.4c-.39.39-1.02.39-1.41 0L6 10.59c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 12H19v-6h-2v1.59L13 7.41z" // 历史记录图标
+    iconPath: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 21l4-4 4 4v-6.17l-2-2V13l2.81-2.81c.39-.39.39-1.02 0-1.41l-2.59-2.59c.39-.39 1.02-.39 1.41 0L12 10.59 9.19 7.79c-.39-.39-1.02-.39-1.41 0L5 10.59c-.39.39-.39 1.02 0 1.41L7.81 14 5 16.81c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 17.41l2.81 2.81c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0 1.41L14.19 14 17 11.19V13c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v1.59L13 7.41 10.19 10.21c-.39-.39-1.02-.39-1.41 0L6 7.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 9 19 11.19V5h-2v1.59L13 9.41 10.19 6.6c-.39-.39-1.02-.39-1.41 0L6 9.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 16.59 14.81 19.4c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0-1.41L16.81 13H19v6h-2v-1.59L13 10.59 10.19 13.4c-.39.39-1.02.39-1.41 0L6 10.59c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 12H19v-6h-2v1.59L13 7.41z"
   },
   {
-    path: "/front/setting", // 系统设置路由
+    path: "/front/setting",
     name: "平台设置",
-    iconPath: "M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14 2.81c-.04-.24-.24-.41-.48-.41h-4c-.24 0-.43.17-.47.41L9.25 5.35c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L.74 10.4c-.12.22-.07.47.12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94L10 21.19c.04.24.24.41.48.41h4c.24 0 .43-.17.47-.41l.75-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.03-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" // 设置图标
+    iconPath: "M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14 2.81c-.04-.24-.24-.41-.48-.41h-4c-.24 0-.43.17-.47.41L9.25 5.35c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L.74 10.4c-.12.22-.07.47.12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94L10 21.19c.04.24.24.41.48.41h4c.24 0 .43-.17.47-.41l.75-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.03-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
   }
 ]);
 
-// --------------- 核心修复：初始化用户信息 ---------------
+// 初始化用户信息
 const initUserInfo = async () => {
-  // 重置用户信息
   userInfo.value = {username: '', hasLogin: false, tokenExpired: false};
-
-  // 1. 获取本地存储的token和用户名
   const accessToken = localStorage.getItem("accessToken");
   const localUsername = localStorage.getItem("username") || localStorage.getItem("rememberedUsername");
 
-  // 2. 无token直接返回未登录状态
   if (!accessToken) return;
 
-  // 3. 检查token是否过期
   const tokenExpireTimestamp = localStorage.getItem("tokenExpireTimestamp");
   if (tokenExpireTimestamp && new Date().getTime() > Number(tokenExpireTimestamp)) {
     userInfo.value.tokenExpired = true;
     ElMessage.warning('登录状态已过期，请重新登录');
-    handleLogout(false); // 静默退出，不弹确认框
+    handleLogout(false);
     return;
   }
 
-  // 4. 本地有用户名，直接使用
   if (localUsername) {
     userInfo.value = {
       username: localUsername,
       hasLogin: true,
       tokenExpired: false
     };
-    // 异步刷新最新用户名
     fetchUsername();
     return;
   }
 
-  // 5. 本地无用户名，调用接口获取
   await fetchUsername();
 };
 
-// --------------- 从接口获取用户名 ---------------
+// 从接口获取用户名
 const fetchUsername = async () => {
   try {
     const res = await request({
@@ -242,7 +288,6 @@ const fetchUsername = async () => {
     if (res.code === 200 && res.data) {
       userInfo.value.username = res.data;
       userInfo.value.hasLogin = true;
-      // 统一本地存储key
       localStorage.setItem("username", res.data);
       ElMessage.success(`欢迎回来，${res.data}！`);
     } else {
@@ -257,15 +302,14 @@ const fetchUsername = async () => {
   }
 };
 
-// --------------- 侧边栏折叠/展开切换 ---------------
+// 侧边栏折叠/展开切换
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
   ElMessage.info(isSidebarCollapsed.value ? '侧边栏已折叠' : '侧边栏已展开');
 };
 
-// --------------- 退出登录逻辑（修复本地存储清除） ---------------
+// 退出登录逻辑
 const handleLogout = async (needConfirm = true) => {
-  // 需要确认时弹框
   if (needConfirm) {
     try {
       await ElMessageBox.confirm(
@@ -284,7 +328,6 @@ const handleLogout = async (needConfirm = true) => {
     }
   }
 
-  // 1. 清除所有登录相关本地存储
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("tokenExpireTime");
@@ -292,14 +335,12 @@ const handleLogout = async (needConfirm = true) => {
   localStorage.removeItem("username");
   localStorage.removeItem("rememberedUsername");
 
-  // 2. 重置用户信息
   userInfo.value = {
     username: '',
     hasLogin: false,
     tokenExpired: false
   };
 
-  // 3. 调用后端退出接口（可选）
   const refreshToken = localStorage.getItem("refreshToken");
   if (refreshToken) {
     try {
@@ -310,12 +351,11 @@ const handleLogout = async (needConfirm = true) => {
     }
   }
 
-  // 4. 跳转登录页
   ElMessage.success('退出登录成功');
   router.push("/login");
 };
 
-// --------------- 登录按钮点击逻辑 ---------------
+// 登录按钮点击逻辑
 const handleLogin = () => {
   router.push("/login")
       .then(() => {
@@ -328,7 +368,7 @@ const handleLogin = () => {
       });
 };
 
-// --------------- 个人中心点击跳转逻辑（增加登录校验） ---------------
+// 个人中心点击跳转逻辑
 const handleUserInfoClick = () => {
   if (!userInfo.value.hasLogin) {
     ElMessage.warning('请先登录');
@@ -346,22 +386,20 @@ const handleUserInfoClick = () => {
       });
 };
 
-// --------------- 消息相关核心方法 ---------------
-// 1. 切换消息弹窗显示/隐藏（增加登录校验）
-const toggleMsgPopup = (e) => {
+// 切换消息弹窗显示/隐藏（优化）
+const toggleMsgPopup = () => {
   if (!userInfo.value.hasLogin) {
     ElMessage.warning('请先登录查看消息');
     handleLogin();
     return;
   }
-  if (e) e.stopPropagation();
   isMsgPopupShow.value = !isMsgPopupShow.value;
   if (isMsgPopupShow.value && msgList.value.length === 0) {
     loadMsgList();
   }
 };
 
-// 2. 加载消息列表
+// 加载消息列表
 const loadMsgList = async () => {
   try {
     const response = await request({
@@ -371,6 +409,7 @@ const loadMsgList = async () => {
     });
     const resData = response.data || [];
     msgList.value = resData;
+    // 重新计算未读数量
     unreadMsgCount.value = resData.filter(msg => !msg.isRead).length;
 
     if (unreadMsgCount.value > 0) {
@@ -385,9 +424,8 @@ const loadMsgList = async () => {
   }
 };
 
-// 3. 标记所有消息为已读
-const markAllAsRead = async (e) => {
-  if (e) e.stopPropagation();
+// 标记所有消息为已读
+const markAllAsRead = async () => {
   if (unreadMsgCount.value === 0) {
     ElMessage.info('暂无未读消息');
     return;
@@ -403,6 +441,7 @@ const markAllAsRead = async (e) => {
       method: "post"
     });
     ElMessage.close('msg-read-loading');
+    // 更新本地消息状态
     msgList.value.forEach(msg => {
       msg.isRead = true;
     });
@@ -415,7 +454,7 @@ const markAllAsRead = async (e) => {
   }
 };
 
-// 4. 获取消息类型文本
+// 获取消息类型文本
 const getMsgTypeText = (type) => {
   switch (type) {
     case "system":
@@ -431,28 +470,15 @@ const getMsgTypeText = (type) => {
   }
 };
 
-// 5. 查看更多消息
+// 查看更多消息
 const viewMoreMsg = () => {
+  // 关闭当前弹窗
+  isMsgPopupShow.value = false;
   ElMessage.info('即将跳转到消息中心页面');
   // router.push("/front/message-center");
 };
 
-// --------------- 响应式窗口适配 ---------------
-const handleWindowResize = () => {
-  windowWidth.value = window.innerWidth;
-  if (windowWidth.value < 768) {
-    isSidebarCollapsed.value = true;
-  }
-};
-
-// --------------- 点击空白处关闭消息弹窗 ---------------
-const handleClickOutside = (e) => {
-  if (isMsgPopupShow.value && !e.target.closest(".msg-wrapper")) {
-    isMsgPopupShow.value = false;
-  }
-};
-
-// --------------- 加载未读消息数量 ---------------
+// 加载未读消息数量
 const loadUnreadMsgCount = async () => {
   if (!userInfo.value.hasLogin) return;
   try {
@@ -466,17 +492,75 @@ const loadUnreadMsgCount = async () => {
   }
 };
 
-// --------------- 组件生命周期 ---------------
+// 响应式窗口适配
+const handleWindowResize = () => {
+  windowWidth.value = window.innerWidth;
+  if (windowWidth.value < 768) {
+    isSidebarCollapsed.value = true;
+  }
+};
+
+// 点击空白处关闭消息弹窗
+const handleClickOutside = (e) => {
+  if (isMsgPopupShow.value && !e.target.closest(".msg-wrapper")) {
+    isMsgPopupShow.value = false;
+  }
+};
+
+// 新增：格式化时间
+const formatTime = (timeStr) => {
+  if (!timeStr) return '未知时间';
+  const date = new Date(timeStr);
+  return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
+};
+
+// 新增：查看消息详情
+const viewMsgDetail = (msg) => {
+  currentMsg.value = {...msg}; // 深拷贝防止直接修改原数据
+  showMsgDetail.value = true;
+};
+
+// 新增：关闭消息详情弹窗
+const closeMsgDetail = () => {
+  showMsgDetail.value = false;
+  currentMsg.value = null;
+};
+
+// 新增：标记单条消息为已读
+const markSingleMsgRead = async () => {
+  if (!currentMsg.value) return;
+
+  try {
+    await request({
+      url: `/api/msg/read/${currentMsg.value.id}`, // 假设消息有id字段
+      method: "post"
+    });
+
+    // 更新本地状态
+    currentMsg.value.isRead = true;
+    // 更新消息列表中的状态
+    const index = msgList.value.findIndex(item => item.id === currentMsg.value.id);
+    if (index !== -1) {
+      msgList.value[index].isRead = true;
+    }
+    // 更新未读数量
+    unreadMsgCount.value = Math.max(0, unreadMsgCount.value - 1);
+
+    ElMessage.success('消息已标记为已读');
+  } catch (error) {
+    console.error("标记单条消息为已读失败：", error);
+    ElMessage.error('标记已读失败，请稍后重试');
+  }
+};
+
+// 生命周期
 onMounted(() => {
-  // 初始化窗口适配
   handleWindowResize();
   window.addEventListener("resize", handleWindowResize);
   document.addEventListener("click", handleClickOutside);
 
-  // 初始化用户信息
   initUserInfo();
 
-  // 监听登录状态变化，加载未读消息
   watch(
       () => userInfo.value.hasLogin,
       (newVal) => {
@@ -484,6 +568,8 @@ onMounted(() => {
         else {
           msgList.value = [];
           unreadMsgCount.value = 0;
+          isMsgPopupShow.value = false;
+          showMsgDetail.value = false;
         }
       },
       {immediate: true}
@@ -533,7 +619,6 @@ onUnmounted(() => {
   justify-content: space-between;
 }
 
-/* 侧边栏折叠状态 */
 .sidebar-collapsed {
   width: 64px !important;
 }
@@ -657,10 +742,11 @@ onUnmounted(() => {
   margin-left: 12px;
 }
 
-/* 消息模块样式 */
+/* 消息模块样式 - 核心优化 */
 .msg-wrapper {
   display: flex;
   align-items: center;
+  position: relative; /* 关键：让弹窗相对于这个容器定位 */
 }
 
 .msg-btn {
@@ -697,18 +783,18 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
-/* 消息弹窗 */
+/* 消息弹窗 - 优化定位和样式 */
 .msg-popup {
   position: absolute;
-  top: 0;
+  top: -20px; /* 向上偏移，让弹窗更居中 */
   left: 100%;
   margin-left: 8px;
-  width: 380px;
+  width: 420px; /* 加宽弹窗，更好展示内容 */
   background-color: #ffffff;
   border: 1px solid #e1e5eb;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  z-index: 9999; /* 提高层级，确保不被遮挡 */
   overflow: hidden;
 }
 
@@ -719,6 +805,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid #e1e5eb;
+  background-color: #f8fafc;
 }
 
 .popup-title {
@@ -750,14 +837,20 @@ onUnmounted(() => {
 
 /* 弹窗内容 */
 .msg-popup-content {
-  max-height: 300px;
+  max-height: 400px; /* 增高内容区，显示更多消息 */
   overflow-y: auto;
 }
 
-/* 空消息状态 */
+/* 空消息状态 - 优化样式 */
 .msg-empty {
-  padding: 32px 16px;
+  padding: 48px 16px;
   text-align: center;
+}
+
+.empty-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
 }
 
 .msg-empty p {
@@ -766,11 +859,12 @@ onUnmounted(() => {
   margin: 0;
 }
 
-/* 消息项 */
+/* 消息项 - 核心优化 */
 .msg-item {
-  padding: 12px 16px;
+  padding: 16px;
   border-bottom: 1px solid #f5f7fa;
   transition: background-color 0.2s ease;
+  cursor: pointer;
 }
 
 .msg-item:hover {
@@ -780,31 +874,41 @@ onUnmounted(() => {
 /* 未读消息样式 */
 .msg-unread {
   background-color: #f0f7ff;
-  border-left: 2px solid #409eff;
+  border-left: 3px solid #409eff;
+}
+
+/* 消息项头部 - 优化布局 */
+.msg-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .msg-item-time {
   font-size: 12px;
   color: #909399;
-  margin-bottom: 4px;
 }
 
+/* 消息内容 - 优化展示 */
 .msg-item-content {
-  font-size: 13px;
-  color: #667085;
-  margin-bottom: 4px;
-  line-height: 1.4;
+  font-size: 14px;
+  color: #333;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  word-wrap: break-word;
+  word-break: break-all;
 }
 
+/* 消息类型标签 */
 .msg-item-type {
   display: inline-block;
-  font-size: 10px;
-  padding: 2px 6px;
+  font-size: 12px;
+  padding: 2px 8px;
   border-radius: 4px;
   color: #ffffff;
 }
 
-/* 消息类型配色 */
 .msg-item-type.system {
   background-color: #409eff;
 }
@@ -819,6 +923,16 @@ onUnmounted(() => {
 
 .msg-item-type.error {
   background-color: #f56c6c;
+}
+
+/* 已读/未读标记 */
+.msg-read-tag {
+  font-size: 12px;
+  color: #409eff;
+  background-color: #e6f0ff;
+  padding: 1px 6px;
+  border-radius: 3px;
+  display: inline-block;
 }
 
 /* 弹窗底部 */
@@ -940,6 +1054,188 @@ onUnmounted(() => {
   color: #667085;
 }
 
+/* 新增：消息详情弹窗样式 */
+.msg-detail-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+}
+
+.msg-detail-popup {
+  width: 500px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.msg-detail-header {
+  padding: 16px;
+  border-bottom: 1px solid #e1e5eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f8fafc;
+}
+
+.msg-detail-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #2c3e50;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #909399;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background-color: #f5f7fa;
+  color: #667085;
+}
+
+.msg-detail-content {
+  padding: 20px;
+}
+
+.detail-item {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.detail-item label {
+  width: 80px;
+  font-size: 14px;
+  color: #667085;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.detail-item span {
+  font-size: 14px;
+  color: #333;
+}
+
+.content-item {
+  flex-direction: column;
+}
+
+.content-item label {
+  margin-bottom: 8px;
+}
+
+.content-text {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #333;
+  padding: 12px;
+  background-color: #f8fafc;
+  border-radius: 4px;
+  min-height: 80px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* 类型标签样式 */
+.type-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12px;
+}
+
+.type-tag.system {
+  background-color: #409eff;
+}
+
+.type-tag.detect {
+  background-color: #67c23a;
+}
+
+.type-tag.warning {
+  background-color: #e6a23c;
+}
+
+.type-tag.error {
+  background-color: #f56c6c;
+}
+
+.type-tag.unknown {
+  background-color: #909399;
+}
+
+/* 状态标签样式 */
+.status-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.status-tag.read {
+  background-color: #e8f4ec;
+  color: #67c23a;
+}
+
+.status-tag.unread {
+  background-color: #f0f7ff;
+  color: #409eff;
+}
+
+/* 弹窗底部按钮 */
+.msg-detail-footer {
+  padding: 16px;
+  border-top: 1px solid #e1e5eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.cancel-btn {
+  background-color: #f5f7fa;
+  color: #667085;
+  border-color: #e1e5eb;
+}
+
+.cancel-btn:hover {
+  background-color: #e6e8eb;
+}
+
+.confirm-btn {
+  background-color: #409eff;
+  color: #fff;
+}
+
+.confirm-btn:hover {
+  background-color: #337ecc;
+}
+
 /* 响应式适配（移动端） */
 @media (max-width: 768px) {
   .layout-sidebar {
@@ -960,6 +1256,12 @@ onUnmounted(() => {
     left: 64px;
     top: 0;
     margin-left: 0;
+  }
+
+  /* 移动端消息详情弹窗适配 */
+  .msg-detail-popup {
+    width: 90%;
+    max-width: 400px;
   }
 }
 </style>
