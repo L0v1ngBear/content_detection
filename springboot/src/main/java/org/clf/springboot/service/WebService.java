@@ -45,8 +45,10 @@ public class WebService {
 
     public List<Msg> getLatestMsgList(String userId, Integer pageSize) {
         LambdaQueryWrapper<Msg> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(Msg::getUserId, userId) // 条件：用户ID匹配
+        queryWrapper.eq(Msg::getUserId, userId)// 条件：用户ID匹配
+                .eq(Msg::getIsRead, 0) // 条件，0未读
                 .orderByDesc(Msg::getCreateTime) // 倒序：按创建时间
+                .select(Msg::getType, Msg::getContent, Msg::getCreateTime, Msg::getIsRead)
                 .last("LIMIT " + pageSize); // 限制返回条数
         return msgMapper.selectList(queryWrapper);
 

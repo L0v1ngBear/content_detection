@@ -21,7 +21,7 @@ public class GlobalExceptionHandler {
         logger.error("业务异常：{}，请求路径：{}", resultCode.getMsg(), request.getRequestURI(), e);
 
         // 1. 用Result构建统一返回体
-        Result result = Result.error(resultCode);
+        Result result = Result.error(e.getMsg());
         // 2. 设置正确的HTTP状态码（从枚举中获取）
         return new ResponseEntity<>(result, resultCode.getHttpStatus());
     }
