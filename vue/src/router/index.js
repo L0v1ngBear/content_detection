@@ -16,7 +16,8 @@ const router = createRouter({
                 { path: 'picture', name: 'picture', meta: {title: '图片检测'}, component: () => import('../views/front/Picture.vue')},
                 { path: 'history', name: 'history', meta: {title: '历史记录'}, component: () => import('../views/front/History.vue')},
                 { path: 'setting', name: 'setting', meta: {title: '设置'}, component: () => import('../views/front/Setting.vue')},
-                { path: 'video', name: 'video', meta: {title: '视频检测'}, component: () => import('../views/front/Video.vue')}
+                { path: 'video', name: 'video', meta: {title: '视频检测'}, component: () => import('../views/front/Video.vue')},
+                { path: 'message-center', name: 'message-center', meta: {title: '消息中心'}, component: () => import('../views/front/MessageCenter.vue')}
                 ]
         },
         {   path: '/home', name: 'home', meta: {title: '首页'}, component: () => import('../views/Home.vue')

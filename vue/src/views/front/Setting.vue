@@ -23,13 +23,7 @@
         >
           密码修改
         </button>
-        <button
-            class="tab-nav-item"
-            :class="{ active: activeTab === 'storageConfig' }"
-            @click="activeTab = 'storageConfig'"
-        >
-          存储配置
-        </button>
+        <!-- 移除存储配置选项卡 -->
         <!-- 新增API访问密钥选项卡 -->
         <button
             class="tab-nav-item"
@@ -136,42 +130,6 @@
 
           <div class="form-actions">
             <button class="btn submit-btn" @click="submitPassword">修改密码</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 存储配置面板 -->
-      <div class="tab-panel" v-if="activeTab === 'storageConfig'">
-        <div class="setting-form-box">
-          <div class="form-item">
-            <label class="form-label">文件存储方式：</label>
-            <span class="form-value tag storage-tag">MinIO</span>
-            <p class="form-tip">(当前系统默认存储方式，不可修改)</p>
-          </div>
-
-          <div class="form-item">
-            <label class="form-label">单文件最大大小：</label>
-            <span class="form-value">{{ storageConfig.maxFileSize }} MB</span>
-          </div>
-
-          <div class="form-item">
-            <label class="form-label">每月存储容量：</label>
-            <div class="progress-box">
-              <div class="progress-bar">
-                <div
-                    class="progress-fill"
-                    :style="{ width: storageConfig.usedPercent + '%' }"
-                ></div>
-              </div>
-              <div class="progress-text">
-                {{ storageConfig.usedSize }} MB / {{ storageConfig.totalSize }} MB
-              </div>
-            </div>
-          </div>
-
-          <div class="form-item">
-            <label class="form-label">剩余存储容量：</label>
-            <span class="form-value">{{ storageConfig.totalSize - storageConfig.usedSize }} MB</span>
           </div>
         </div>
       </div>
@@ -354,13 +312,7 @@ export default {
       confirmPassword: ''
     });
 
-    // 存储配置（只读）
-    const storageConfig = reactive({
-      maxFileSize: 100,
-      usedSize: 0,
-      totalSize: 1024,
-      usedPercent: 0
-    });
+    // 移除存储配置相关代码
 
     // API密钥相关
     const apiKeyForm = reactive({
@@ -383,17 +335,10 @@ export default {
           timeout: 10000
         });
         // 赋值时排除userId，仅赋值需要的字段
-        const { username, phone, email, avatar } = userRes.data;
-        Object.assign(userInfoForm, { username, phone, email, avatar });
+        const {username, phone, email, avatar} = userRes.data;
+        Object.assign(userInfoForm, {username, phone, email, avatar});
 
-        // 获取存储配置
-        const storageRes = await request({
-          url: '/api/config/storage',
-          method: 'get',
-          timeout: 10000
-        });
-        Object.assign(storageConfig, storageRes.data);
-        storageConfig.usedPercent = Math.round((storageConfig.usedSize / storageConfig.totalSize) * 100);
+        // 移除存储配置相关请求
 
         // 加载API密钥列表
         await loadApiKeyList();
@@ -727,7 +672,6 @@ export default {
       generating,
       userInfoForm,
       passwordForm,
-      storageConfig,
       apiKeyForm,
       apiKeyList,
       showKeyModal,
@@ -944,46 +888,7 @@ export default {
   color: #ffffff;
 }
 
-/* 进度条样式 */
-.progress-box {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  max-width: 400px;
-}
-
-.progress-bar {
-  height: 8px;
-  background-color: #f5f7fa;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background-color: #409eff;
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  font-size: 12px;
-  color: #909399;
-}
-
-/* 标签样式 */
-.tag {
-  padding: 4px 12px;
-  border-radius: 16px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.storage-tag {
-  background-color: #e8f4f8;
-  color: #4299e1;
-}
+/* 移除存储配置相关样式 */
 
 /* 表单操作按钮 */
 .form-actions {
@@ -1338,9 +1243,11 @@ export default {
   .col-name {
     flex: 1.2;
   }
+
   .col-access-key {
     flex: 2;
   }
+
   .col-operation {
     flex: 2.5;
     flex-wrap: wrap;
@@ -1371,10 +1278,6 @@ export default {
     align-items: flex-start;
   }
 
-  .progress-box {
-    max-width: 100%;
-  }
-
   /* API密钥弹窗响应式 */
   .modal-content {
     width: 90%;
@@ -1384,17 +1287,20 @@ export default {
   .list-header-row {
     display: none;
   }
+
   .list-row {
     flex-direction: column;
     padding: 16px;
     border-bottom: 1px solid #e6e9ed;
   }
+
   .list-col {
     padding: 8px 0;
     text-align: left;
     display: flex;
     align-items: center;
   }
+
   .list-col::before {
     content: attr(data-label);
     font-weight: 500;
@@ -1402,12 +1308,31 @@ export default {
     color: #4e5d78;
     min-width: 80px;
   }
-  .col-name::before { content: '密钥名称：'; }
-  .col-access-key::before { content: 'Access Key：'; }
-  .col-status::before { content: '状态：'; }
-  .col-create-time::before { content: '创建时间：'; }
-  .col-expire-time::before { content: '过期时间：'; }
-  .col-operation::before { content: '操作：'; }
+
+  .col-name::before {
+    content: '密钥名称：';
+  }
+
+  .col-access-key::before {
+    content: 'Access Key：';
+  }
+
+  .col-status::before {
+    content: '状态：';
+  }
+
+  .col-create-time::before {
+    content: '创建时间：';
+  }
+
+  .col-expire-time::before {
+    content: '过期时间：';
+  }
+
+  .col-operation::before {
+    content: '操作：';
+  }
+
   .col-operation {
     justify-content: flex-start;
     margin-top: 8px;

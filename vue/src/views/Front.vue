@@ -39,8 +39,8 @@
 
         <!-- 侧边栏底部功能区（整合消息、个人中心、退出登录） -->
         <div class="sidebar-footer">
-          <!-- 系统消息模块 - 核心优化 -->
-          <div class="sidebar-function-item msg-wrapper" @click.stop="toggleMsgPopup()">
+          <!-- 系统消息模块 - 核心优化（调整弹窗到按钮上方） -->
+          <div class="sidebar-function-item msg-wrapper" ref="msgWrapperRef" @click.stop="toggleMsgPopup()">
             <!-- 消息按钮 -->
             <button class="msg-btn" @click.stop>
               <svg viewBox="0 0 24 24" fill="#667085" class="msg-icon">
@@ -53,17 +53,20 @@
             <!-- 消息文字 -->
             <span class="function-text" v-if="!isSidebarCollapsed">系统消息</span>
 
-            <!-- 消息弹窗（核心优化：增加z-index、定位、内容展示） -->
-            <div class="msg-popup" v-show="isMsgPopupShow" @click.stop>
+            <!-- 消息弹窗（核心优化：定位到按钮上方） -->
+            <div class="msg-popup" v-show="isMsgPopupShow" @click.stop :style="popupStyle">
               <!-- 弹窗头部 -->
               <div class="msg-popup-header">
                 <h3 class="popup-title">系统消息</h3>
-                <button class="popup-clear-btn" @click.stop="markAllAsRead()" :disabled="unreadMsgCount === 0">
-                  标为已读
-                </button>
+                <div class="popup-header-actions">
+                  <button class="popup-clear-btn" @click="markAllAsRead()" :disabled="unreadMsgCount === 0">
+                    标为已读
+                  </button>
+                  <button class="popup-close-btn" @click.stop="isMsgPopupShow = false">×</button>
+                </div>
               </div>
 
-              <!-- 弹窗内容（消息列表 - 优化内容展示） -->
+              <!-- 弹窗内容 -->
               <div class="msg-popup-content">
                 <div class="msg-empty" v-if="msgList.length === 0">
                   <svg viewBox="0 0 24 24" fill="#dcdfe6" class="empty-icon">
@@ -72,7 +75,7 @@
                   <p>暂无系统消息</p>
                 </div>
 
-                <!-- 消息项 - 优化样式，展示完整内容 -->
+                <!-- 消息项 -->
                 <div class="msg-item" v-for="(msg, index) in msgList" :key="index"
                      :class="{ 'msg-unread': !msg.isRead }"
                      @click.stop="viewMsgDetail(msg)">
@@ -95,7 +98,7 @@
             </div>
           </div>
 
-          <!-- 个人中心（迁移到侧边栏）- 新增点击跳转逻辑 -->
+          <!-- 个人中心 -->
           <div
               class="sidebar-function-item user-info"
               v-if="userInfo.hasLogin"
@@ -126,9 +129,9 @@
         </div>
       </aside>
 
-      <!-- 主内容区域（头部仅保留侧边栏切换按钮，简化布局） -->
+      <!-- 主内容区域 -->
       <div class="layout-main">
-        <!-- 简化版公共头部（仅保留折叠按钮） -->
+        <!-- 简化版公共头部 -->
         <header class="layout-header">
           <button class="header-toggle-btn" @click.stop="toggleSidebar()">
             <svg viewBox="0 0 24 24" fill="#667085" class="toggle-icon">
@@ -137,7 +140,7 @@
           </button>
         </header>
 
-        <!-- 路由内容容器（嵌入页面内容） -->
+        <!-- 路由内容容器 -->
         <main class="layout-content">
           <router-view/>
         </main>
@@ -149,7 +152,7 @@
       </div>
     </div>
 
-    <!-- 消息详情弹窗（新增） -->
+    <!-- 消息详情弹窗 -->
     <teleport to="body">
       <div class="msg-detail-mask" v-if="showMsgDetail" @click.stop="closeMsgDetail()">
         <div class="msg-detail-popup" @click.stop>
@@ -208,8 +211,10 @@ const windowWidth = ref(window.innerWidth);
 const isMsgPopupShow = ref(false); // 消息弹窗显示/隐藏
 const msgList = ref([]); // 消息列表
 const unreadMsgCount = ref(0); // 未读消息数量
+const msgWrapperRef = ref(null); // 消息容器ref，用于定位
+const popupStyle = ref({}); // 弹窗动态样式
 
-// 新增：消息详情相关
+// 消息详情相关
 const showMsgDetail = ref(false); // 是否显示消息详情弹窗
 const currentMsg = ref(null); // 当前选中的消息
 
@@ -306,6 +311,10 @@ const fetchUsername = async () => {
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
   ElMessage.info(isSidebarCollapsed.value ? '侧边栏已折叠' : '侧边栏已展开');
+  // 折叠后重新计算弹窗位置
+  if (isMsgPopupShow.value && msgWrapperRef.value) {
+    updatePopupPosition();
+  }
 };
 
 // 退出登录逻辑
@@ -386,7 +395,26 @@ const handleUserInfoClick = () => {
       });
 };
 
-// 切换消息弹窗显示/隐藏（优化）
+// 【核心修改：更新弹窗位置到「系统消息按钮上方、平台设置下方」】
+const updatePopupPosition = () => {
+  const wrapper = msgWrapperRef.value;
+  if (!wrapper) return;
+
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const popupDom = document.querySelector('.msg-popup');
+  const popupHeight = popupDom ? popupDom.offsetHeight : 300; // 预估值
+
+  // 弹窗定位到「系统消息按钮的上方，底部与按钮顶部对齐」
+  popupStyle.value = {
+    position: 'fixed',
+    top: `${wrapperRect.top - popupHeight}px`, // 弹窗底部 = 按钮顶部
+    left: `${wrapperRect.left}px`, // 与按钮左对齐（侧边栏内）
+    zIndex: 9999,
+    width: isSidebarCollapsed.value ? '64px' : '220px' // 与侧边栏宽度一致
+  };
+};
+
+// 切换消息弹窗显示/隐藏（优化：调用位置更新）
 const toggleMsgPopup = () => {
   if (!userInfo.value.hasLogin) {
     ElMessage.warning('请先登录查看消息');
@@ -394,8 +422,15 @@ const toggleMsgPopup = () => {
     return;
   }
   isMsgPopupShow.value = !isMsgPopupShow.value;
-  if (isMsgPopupShow.value && msgList.value.length === 0) {
-    loadMsgList();
+
+  if (isMsgPopupShow.value) {
+    // 延迟更新（确保弹窗DOM已渲染，获取正确高度）
+    setTimeout(() => {
+      updatePopupPosition();
+    }, 0);
+    if (msgList.value.length === 0) {
+      loadMsgList();
+    }
   }
 };
 
@@ -407,9 +442,8 @@ const loadMsgList = async () => {
       method: "get",
       params: {pageSize: 10}
     });
-    const resData = response.data || [];
+    const resData = response.data.records || [];
     msgList.value = resData;
-    // 重新计算未读数量
     unreadMsgCount.value = resData.filter(msg => !msg.isRead).length;
 
     if (unreadMsgCount.value > 0) {
@@ -431,17 +465,10 @@ const markAllAsRead = async () => {
     return;
   }
   try {
-    ElMessage.loading({
-      message: '正在标记已读...',
-      duration: 0,
-      id: 'msg-read-loading'
-    });
     await request({
       url: "/api/msg/all-read",
       method: "post"
     });
-    ElMessage.close('msg-read-loading');
-    // 更新本地消息状态
     msgList.value.forEach(msg => {
       msg.isRead = true;
     });
@@ -472,10 +499,9 @@ const getMsgTypeText = (type) => {
 
 // 查看更多消息
 const viewMoreMsg = () => {
-  // 关闭当前弹窗
   isMsgPopupShow.value = false;
   ElMessage.info('即将跳转到消息中心页面');
-  // router.push("/front/message-center");
+  router.push("/front/message-center");
 };
 
 // 加载未读消息数量
@@ -492,58 +518,60 @@ const loadUnreadMsgCount = async () => {
   }
 };
 
-// 响应式窗口适配
+// 响应式窗口适配（优化：弹窗位置重新计算）
 const handleWindowResize = () => {
   windowWidth.value = window.innerWidth;
   if (windowWidth.value < 768) {
     isSidebarCollapsed.value = true;
   }
+
+  // 弹窗显示时重新定位
+  if (isMsgPopupShow.value) {
+    updatePopupPosition();
+  }
 };
 
 // 点击空白处关闭消息弹窗
 const handleClickOutside = (e) => {
-  if (isMsgPopupShow.value && !e.target.closest(".msg-wrapper")) {
+  if (isMsgPopupShow.value && !e.target.closest(".msg-wrapper") && !e.target.closest(".msg-popup")) {
     isMsgPopupShow.value = false;
   }
 };
 
-// 新增：格式化时间
+// 格式化时间
 const formatTime = (timeStr) => {
   if (!timeStr) return '未知时间';
   const date = new Date(timeStr);
   return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
 };
 
-// 新增：查看消息详情
+// 查看消息详情
 const viewMsgDetail = (msg) => {
-  currentMsg.value = {...msg}; // 深拷贝防止直接修改原数据
+  currentMsg.value = {...msg};
   showMsgDetail.value = true;
 };
 
-// 新增：关闭消息详情弹窗
+// 关闭消息详情弹窗
 const closeMsgDetail = () => {
   showMsgDetail.value = false;
   currentMsg.value = null;
 };
 
-// 新增：标记单条消息为已读
+// 标记单条消息为已读
 const markSingleMsgRead = async () => {
   if (!currentMsg.value) return;
 
   try {
     await request({
-      url: `/api/msg/read/${currentMsg.value.id}`, // 假设消息有id字段
+      url: `/api/msg/read/${currentMsg.value.id}`,
       method: "post"
     });
 
-    // 更新本地状态
     currentMsg.value.isRead = true;
-    // 更新消息列表中的状态
     const index = msgList.value.findIndex(item => item.id === currentMsg.value.id);
     if (index !== -1) {
       msgList.value[index].isRead = true;
     }
-    // 更新未读数量
     unreadMsgCount.value = Math.max(0, unreadMsgCount.value - 1);
 
     ElMessage.success('消息已标记为已读');
@@ -612,7 +640,7 @@ onUnmounted(() => {
   background-color: #ffffff;
   border-right: 1px solid #e1e5eb;
   transition: all 0.3s ease;
-  overflow: hidden;
+  overflow: visible !important; /* 确保弹窗不被遮挡 */
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -718,6 +746,7 @@ onUnmounted(() => {
   border-top: 1px solid #e1e5eb;
   background-color: #f8fafc;
   flex-shrink: 0;
+  overflow: visible !important;
 }
 
 .sidebar-function-item {
@@ -730,6 +759,7 @@ onUnmounted(() => {
   transition: all 0.2s ease;
   white-space: nowrap;
   position: relative;
+  overflow: visible !important;
 }
 
 .sidebar-function-item:hover {
@@ -742,11 +772,12 @@ onUnmounted(() => {
   margin-left: 12px;
 }
 
-/* 消息模块样式 - 核心优化 */
+/* 消息模块样式 */
 .msg-wrapper {
   display: flex;
   align-items: center;
-  position: relative; /* 关键：让弹窗相对于这个容器定位 */
+  position: relative;
+  overflow: visible !important;
 }
 
 .msg-btn {
@@ -783,18 +814,12 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
-/* 消息弹窗 - 优化定位和样式 */
+/* 消息弹窗样式（核心调整：宽度与侧边栏一致，定位在按钮上方） */
 .msg-popup {
-  position: absolute;
-  top: -20px; /* 向上偏移，让弹窗更居中 */
-  left: 100%;
-  margin-left: 8px;
-  width: 420px; /* 加宽弹窗，更好展示内容 */
   background-color: #ffffff;
   border: 1px solid #e1e5eb;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  z-index: 9999; /* 提高层级，确保不被遮挡 */
   overflow: hidden;
 }
 
@@ -806,6 +831,12 @@ onUnmounted(() => {
   padding: 12px 16px;
   border-bottom: 1px solid #e1e5eb;
   background-color: #f8fafc;
+}
+
+.popup-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .popup-title {
@@ -835,13 +866,32 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
-/* 弹窗内容 */
-.msg-popup-content {
-  max-height: 400px; /* 增高内容区，显示更多消息 */
-  overflow-y: auto;
+/* 弹窗关闭按钮 */
+.popup-close-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #909399;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* 空消息状态 - 优化样式 */
+.popup-close-btn:hover {
+  color: #667085;
+}
+
+/* 弹窗内容 */
+.msg-popup-content {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 0 16px;
+}
+
+/* 空消息状态 */
 .msg-empty {
   padding: 48px 16px;
   text-align: center;
@@ -859,9 +909,9 @@ onUnmounted(() => {
   margin: 0;
 }
 
-/* 消息项 - 核心优化 */
+/* 消息项 */
 .msg-item {
-  padding: 16px;
+  padding: 16px 0;
   border-bottom: 1px solid #f5f7fa;
   transition: background-color 0.2s ease;
   cursor: pointer;
@@ -875,14 +925,17 @@ onUnmounted(() => {
 .msg-unread {
   background-color: #f0f7ff;
   border-left: 3px solid #409eff;
+  padding-left: 13px;
 }
 
-/* 消息项头部 - 优化布局 */
+/* 消息项头部 */
 .msg-item-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  font-size: 12px;
+  color: #909399;
 }
 
 .msg-item-time {
@@ -890,7 +943,7 @@ onUnmounted(() => {
   color: #909399;
 }
 
-/* 消息内容 - 优化展示 */
+/* 消息内容 */
 .msg-item-content {
   font-size: 14px;
   color: #333;
@@ -1054,7 +1107,7 @@ onUnmounted(() => {
   color: #667085;
 }
 
-/* 新增：消息详情弹窗样式 */
+/* 消息详情弹窗样式 */
 .msg-detail-mask {
   position: fixed;
   top: 0;
@@ -1252,10 +1305,8 @@ onUnmounted(() => {
 
   /* 移动端消息弹窗适配 */
   .msg-popup {
-    width: 300px;
-    left: 64px;
-    top: 0;
-    margin-left: 0;
+    width: 64px !important;
+    left: 0 !important;
   }
 
   /* 移动端消息详情弹窗适配 */
