@@ -3,19 +3,26 @@ package org.clf.springboot.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.annotation.Resource;
+import org.clf.springboot.common.enums.ResultCodeEnum;
+import org.clf.springboot.dto.MsgRequestDTO;
 import org.clf.springboot.dto.StaticsResponseDTO;
 import org.clf.springboot.entity.Msg;
 import org.clf.springboot.entity.Picture;
 import org.clf.springboot.entity.PictureStatics;
+import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.mapper.MsgMapper;
 import org.clf.springboot.mapper.PictureStatMapper;
 import org.clf.springboot.utils.UserContextHolder;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -130,6 +137,53 @@ public class WebService {
         }
         resDTO.setLastMonth(pictureStatics.getStatValue());
         return resDTO;
+    }
+
+    public IPage<Msg> getMsgList(MsgRequestDTO msgQueryDTO) {
+
+        String userIdStr = String.valueOf(UserContextHolder.getUserId());
+        if (userIdStr == null) {
+            throw new CustomException(ResultCodeEnum.TOKEN_CHECK_ERROR);
+        }
+        // 2. 从DTO中获取分页参数并校验修正
+        Integer pageNum = msgQueryDTO.getPageNum() == null ? 1 : msgQueryDTO.getPageNum();
+        Integer pageSize = msgQueryDTO.getPageSize() == null ? 10 : msgQueryDTO.getPageSize();
+        pageNum = Math.max(pageNum, 1); // 页码最小为1
+        pageSize = Math.min(Math.max(pageSize, 1), 50); // 每页条数限制1-50
+        LocalDateTime startTime = msgQueryDTO.getStartTime();
+        LocalDateTime endTime = msgQueryDTO.getEndTime();
+
+        // 4. 构建MyBatis-Plus分页对象
+        Page<Msg> page = new Page<>(pageNum, pageSize);
+
+        // 5. 使用LambdaQueryWrapper构建动态查询条件
+        LambdaQueryWrapper<Msg> queryWrapper = new LambdaQueryWrapper<Msg>()
+                // 必选条件：用户ID
+                .eq(Msg::getUserId, userIdStr)
+                // 可选条件：消息类型（从DTO获取）
+                .eq(msgQueryDTO.getType() != null && !msgQueryDTO.getType().isEmpty(),
+                Msg::getType, msgQueryDTO.getType())
+        // 可选条件：阅读状态（转换为数据库的1/0）
+                    .eq(msgQueryDTO.getIsRead() != null,
+                Msg::getIsRead, msgQueryDTO.getIsRead())
+                // 可选条件：创建时间大于等于开始时间
+                .ge(startTime != null, Msg::getCreateTime, startTime)
+                // 可选条件：创建时间小于等于结束时间
+                .le(endTime != null, Msg::getCreateTime, endTime)
+                // 排序：按创建时间降序
+                .orderByDesc(Msg::getCreateTime);
+
+        // 6. 调用服务层分页查询（传入分页对象和查询条件）
+        IPage<Msg> msgPage = msgMapper.selectPage(page, queryWrapper);
+
+        // 7. 转换为响应DTO（复用MyBatis-Plus的IPage分页对象）
+        IPage<Msg> responsePage = msgPage.convert(msg -> {
+            Msg dto = new Msg();
+            BeanUtils.copyProperties(msg, dto);
+            dto.setIsRead(msg.getIsRead()); // 转换为布尔值
+            return dto;
+        });
+        return responsePage;
     }
 }
 
