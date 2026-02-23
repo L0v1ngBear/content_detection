@@ -1,7 +1,7 @@
 <script>
 import {ref, reactive, onMounted} from 'vue';
 import request from '../../utils/request'; // 适配你的request路径
-import {ElMessage, ElMessageBox} from 'element-plus'; // 新增ElMessageBox（可选）
+import {ElMessage} from 'element-plus';
 import {useRouter} from 'vue-router'; // 引入路由，用于跳转登录页
 
 export default {
@@ -16,37 +16,47 @@ export default {
     const empty = ref(false);
     // 历史记录列表
     const historyList = ref([]);
-    // 分页参数：适配后端返回格式（current/size/pages）
+    // 分页参数：适配后端HistoryRequestDTO的pageNum/pageSize
     const pagination = reactive({
-      pageNum: 1,       // 前端使用的当前页
-      pageSize: 10,     // 每页条数
+      pageNum: 1,       // 前端使用的当前页（对应后端pageNum）
+      pageSize: 10,     // 每页条数（对应后端pageSize）
       total: 0,         // 总记录数（后端返回的total）
       totalPages: 0     // 总页数（后端返回的pages）
     });
-    // 筛选参数
+    // 筛选参数：适配后端HistoryRequestDTO字段
     const filterForm = reactive({
-      startTime: '',
-      endTime: '',
-      status: '', // all: 全部, pass: 合规, fail: 违规
-      detectType: '' // all: 全部, image: 图片, video: 视频
+      startTime: '',    // 开始时间（前端日期选择器值）
+      endTime: '',      // 结束时间（前端日期选择器值）
+      status: '',       // 检测状态（all:全部, 2:检测成功, 3:检测失败）
+      detectType: ''    // 检测类型（all:全部, picture:图片, video:视频）
     });
 
-    // 2. 核心方法：获取历史记录列表（修正数据解析逻辑）
+    // 2. 核心方法：获取历史记录列表（适配后端参数）
     const getHistoryList = async () => {
       try {
         // 开启加载状态
         loading.value = true;
         empty.value = false;
 
-        // 构建请求参数（适配后端接收的参数名）
+        // 构建请求参数：严格适配后端HistoryRequestDTO
         const params = {
-          current: pagination.pageNum,  // 后端接收current作为当前页
-          size: pagination.pageSize,    // 后端接收size作为每页条数
-          startTime: filterForm.startTime,
-          endTime: filterForm.endTime,
-          status: filterForm.status,
-          detectType: filterForm.detectType
+          pageNum: pagination.pageNum,    // 对应后端pageNum
+          pageSize: pagination.pageSize,  // 对应后端pageSize
+          // 日期格式转换：前端日期字符串转后端LocalDateTime格式（yyyy-MM-dd HH:mm:ss）
+          startTime: filterForm.startTime ? `${filterForm.startTime} 00:00:00` : '',
+          endTime: filterForm.endTime ? `${filterForm.endTime} 23:59:59` : '',
+          // 状态映射：前端筛选值转后端Integer类型状态
+          status: filterForm.status === '' ? '' : parseInt(filterForm.status),
+          // 检测类型映射：前端值转后端detectType（picture/video）
+          detectType: filterForm.detectType === '' ? '' : filterForm.detectType
         };
+
+        // 过滤空参数（避免传递空字符串给后端）
+        Object.keys(params).forEach(key => {
+          if (params[key] === '' || params[key] === null || params[key] === undefined) {
+            delete params[key];
+          }
+        });
 
         // 调用后端接口
         const response = await request({
@@ -56,7 +66,7 @@ export default {
           timeout: 10000
         });
 
-        // 修正：直接使用response作为responseData（关键）
+        // 处理后端返回结果
         const responseData = response;
         // 校验后端返回的code
         if (responseData.code === 200) {
@@ -68,10 +78,10 @@ export default {
           pagination.totalPages = responseData.data?.pages || 0;
           pagination.pageNum = responseData.data?.current || 1;
 
-          // 强制触发空状态判断（确保无数据时必显示）
+          // 强制触发空状态判断
           empty.value = historyList.value.length === 0;
 
-          // 成功提示（有数据时才显示）
+          // 成功提示
           if (historyList.value.length > 0) {
             ElMessage.success(`成功加载 ${historyList.value.length} 条检测记录`);
           }
@@ -101,7 +111,7 @@ export default {
       } finally {
         // 关闭加载状态
         loading.value = false;
-        // 最终确认空状态（双重保障）
+        // 最终确认空状态
         if (!loading.value) {
           empty.value = historyList.value.length === 0;
         }
@@ -171,7 +181,7 @@ export default {
       <p>查看所有图片/视频的AI检测记录，支持分页与筛选</p>
     </div>
 
-    <!-- 筛选区域 -->
+    <!-- 筛选区域：适配后端参数 -->
     <div class="history-filter-box">
       <div class="filter-item">
         <label>检测时间：</label>
@@ -194,8 +204,8 @@ export default {
         <label>检测类型：</label>
         <select v-model="filterForm.detectType" class="filter-select">
           <option value="">全部类型</option>
-          <option value="image">图片检测</option>
-          <option value="video">视频检测</option>
+          <option value="picture">图片检测</option> <!-- 适配后端picture -->
+          <option value="video">视频检测</option>   <!-- 适配后端video -->
         </select>
       </div>
 
@@ -203,8 +213,8 @@ export default {
         <label>检测状态：</label>
         <select v-model="filterForm.status" class="filter-select">
           <option value="">全部状态</option>
-          <option value="pass">检测合规</option>
-          <option value="fail">检测违规</option>
+          <option value="2">检测成功</option> <!-- 对应后端2-检测成功 -->
+          <option value="3">检测失败</option> <!-- 对应后端3-检测失败 -->
         </select>
       </div>
 
@@ -231,7 +241,6 @@ export default {
           <div class="list-col col-name">文件名称</div>
           <div class="list-col col-status">检测状态</div>
           <div class="list-col col-violation-type">违规类型</div>
-          <div class="list-col col-score">置信度分数</div>
         </div>
 
         <!-- 列表内容 -->
@@ -240,23 +249,23 @@ export default {
           <div class="history-list-item" v-for="(item, index) in historyList" :key="index">
             <div class="list-col col-time">{{ item.detectTime || '未知时间' }}</div>
             <div class="list-col col-type-item">
-              <span class="type-tag" :class="item.detectType === 'image' ? 'tag-image' : 'tag-video'">
-                {{ item.detectType === 'image' ? '图片' : '视频' }}
+              <span class="type-tag" :class="item.detectType === 'picture' ? 'tag-image' : 'tag-video'">
+                {{ item.detectType === 'picture' ? '图片' : '视频' }}
               </span>
             </div>
             <div class="list-col col-name">{{ item.fileName || '未命名文件' }}</div>
             <div class="list-col col-status">
-              <span class="status-tag" :class="item.isPass ? 'tag-pass' : 'tag-fail'">
-                {{ item.isPass ? '检测合规' : '检测违规' }}
+              <!-- 适配后端状态码：2-检测成功 3-检测失败 -->
+              <span class="status-tag" :class="item.status === 2 ? 'tag-pass' : 'tag-fail'">
+                {{ item.status === 2 ? '检测成功' : item.status === 3 ? '检测失败' : '未知状态' }}
               </span>
             </div>
             <div class="list-col col-violation-type">
-              {{ item.isPass ? '—' : (item.violationType || '未知违规类型') }}
+              {{ item.status === 2 ? '—' : (item.violationType || '未知违规类型') }}
             </div>
-            <div class="list-col col-score">{{ item.violationScore || 0 }}/100</div>
           </div>
 
-          <!-- 无数据提示（只要empty为true就显示） -->
+          <!-- 无数据提示 -->
           <div class="history-list-empty" v-if="empty">
             <div class="empty-content">
               <svg class="empty-icon-small" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
@@ -265,7 +274,7 @@ export default {
               </svg>
               <p class="empty-text-small">
                 暂无{{
-                  filterForm.detectType === 'image' ? '图片' : filterForm.detectType === 'video' ? '视频' : '内容'
+                  filterForm.detectType === 'picture' ? '图片' : filterForm.detectType === 'video' ? '视频' : '内容'
                 }}检测历史记录
               </p>
             </div>
@@ -541,10 +550,6 @@ export default {
   flex: 3;
 }
 
-.col-score {
-  flex: 2;
-}
-
 /* 检测类型标签 */
 .type-tag {
   padding: 4px 12px;
@@ -704,7 +709,6 @@ export default {
   .col-name::before { content: '文件名称：'; }
   .col-status::before { content: '检测状态：'; }
   .col-violation-type::before { content: '违规类型：'; }
-  .col-score::before { content: '置信度：'; }
 
   /* 移动端空数据提示适配 */
   .history-list-empty { height: 150px; }
