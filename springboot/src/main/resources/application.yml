@@ -97,4 +97,7 @@ scheduled:
         pic: 0 0 0 * * 0
     syn:
         pic: 0 0 2 1 * ?
+yolo:
+    apiUrl: http://localhost:8000/classify
+    normal: 0.333
 

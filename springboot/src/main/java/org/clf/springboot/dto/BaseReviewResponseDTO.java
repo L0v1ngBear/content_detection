@@ -1,17 +1,19 @@
 package org.clf.springboot.dto;
 
+
+import cn.hutool.core.date.DateTime;
 import lombok.Data;
+import javax.persistence.MappedSuperclass;
 
 @Data
 public class BaseReviewResponseDTO {
 
-    private Long id;
 
     private String fileName;
 
     private String status;
 
-    private Long uploadTime;
+    private DateTime uploadTime;
 
     private Long detectStartTime;
 

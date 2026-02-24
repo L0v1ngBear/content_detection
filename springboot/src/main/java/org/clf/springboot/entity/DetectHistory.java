@@ -11,13 +11,23 @@ public class DetectHistory {
 
     private Long userId;
 
-    private String name;
+    private String objectName;
 
     private Date detectTime;
 
     private String detectType;
 
-    private String status;
+    private Integer status;
 
-    private String signedUrl;
+    private String presignedUrl;
+
+    private String violationType;
+
+    private String createTime;
+
+    private String updateTime;
+
+    private String objectId;
+
+    private Double confidence;
 }

@@ -1,5 +1,6 @@
 package org.clf.springboot.service;
 
+import cn.hutool.core.date.DateTime;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -10,7 +11,6 @@ import org.clf.springboot.common.enums.ResultCodeEnum;
 import org.clf.springboot.dto.MsgRequestDTO;
 import org.clf.springboot.dto.StaticsResponseDTO;
 import org.clf.springboot.entity.Msg;
-import org.clf.springboot.entity.Picture;
 import org.clf.springboot.entity.PictureStatics;
 import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.mapper.MsgMapper;
@@ -75,23 +75,6 @@ public class WebService {
         return msgMapper.selectCount(queryWrapper);
     }
 
-    private Picture buildPicture(String redisKey) {
-
-        Map<Object, Object> hashEntries = stringRedisTemplate.opsForHash().entries(redisKey);
-
-        Picture picture = new Picture();
-
-        picture.setId((Long) hashEntries.get("id"));
-        picture.setUploadTime((Long) hashEntries.get("uploadTime"));
-
-        picture.setObjectName((String) hashEntries.get("objectName"));
-        picture.setStatus((String) hashEntries.get("status"));
-        picture.setImageId((String) hashEntries.get("imageId"));
-
-        picture.setYoloScore((Double) hashEntries.get("yoloScore"));
-        return picture;
-    }
-
     // 获取实时统计数量
     public Long getNowCount() {
         Object value = stringRedisTemplate.opsForValue().get("now_count");
@@ -124,7 +107,7 @@ public class WebService {
     private StaticsResponseDTO buildDTO(String typeName, String redisKey, String lastMonth, String userId) {
         StaticsResponseDTO resDTO = new StaticsResponseDTO();
         resDTO.setTypeName(typeName);
-        Object nowValue = stringRedisTemplate.opsForValue().get(redisKey);
+        Object nowValue = stringRedisTemplate.opsForHash().get(redisKey, userId);
         resDTO.setCurrentMonth(nowValue == null ? null : Long.parseLong(nowValue.toString()));
         QueryWrapper<PictureStatics> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq(userId != null, "user_id", userId)

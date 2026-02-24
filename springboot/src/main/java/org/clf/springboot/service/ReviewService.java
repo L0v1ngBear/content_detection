@@ -1,13 +1,16 @@
 package org.clf.springboot.service;
 
+import cn.hutool.core.date.DateTime;
 import jakarta.annotation.Resource;
 import org.clf.springboot.common.Result;
 import org.clf.springboot.common.ReviewResult;
 import org.clf.springboot.common.enums.ResultCodeEnum;
 import org.clf.springboot.config.RabbitMqConfig;
+import org.clf.springboot.dto.PictureResponseDTO;
 import org.clf.springboot.dto.PictureReviewDTO;
-import org.clf.springboot.entity.Picture;
+import org.clf.springboot.entity.DetectHistory;
 import org.clf.springboot.exception.CustomException;
+import org.clf.springboot.mapper.DetectHistoryMapper;
 import org.clf.springboot.utils.MinIOUtils;
 import org.clf.springboot.utils.RedisUtils;
 import org.clf.springboot.utils.TokenUtils;
@@ -73,6 +76,9 @@ public class ReviewService{
     @Resource
     private RedisUtils redisUtils;
 
+    @Resource
+    private DetectHistoryMapper detectHistoryMapper;
+
     @Transactional(rollbackFor = Exception.class)
     public String pictureView(MultipartFile file) {
         try {
@@ -96,12 +102,8 @@ public class ReviewService{
             String imageListKey = redisPrefix + userId;
             // 单张图片详情
             String imageDetailKey = redisPrefix + userId + imageId;
-
             // 封装图片信息
-            PictureReviewDTO imageInfo = buildImageInfoMap(preSignedUrl, objectName, imageId, userId);
-
-            // 将单张图片存储到redis中
-            extracted(imageDetailKey, imageId, objectName, preSignedUrl);
+            DetectHistory imageInfo = buildImageInfoMap(preSignedUrl, objectName, imageId, userId);
 
             // 发送到消息队列，存入mysql
             rabbitTemplate.convertAndSend(RabbitMqConfig.MYSQL_EXCHANGE_NAME,
@@ -140,31 +142,15 @@ public class ReviewService{
         }
     }
 
-    // 存入redis中
-    private void extracted(String imageDetailKey, String imageId, String objectName, String preSignedUrl) {
-
-        // 避免扩容开销
-        Map<String, String> hashFields = new HashMap<>(8);
-
-        hashFields.put("id", String.valueOf(redisUtils.getId(IMAGE_ID_SEQ_KEY)));
-        hashFields.put("imageId", imageId);
-        hashFields.put("objectName", objectName);
-        hashFields.put("preSignedUrl", preSignedUrl);
-        hashFields.put("status", "PENDING");
-        hashFields.put("uploadTime", String.valueOf(System.currentTimeMillis()));
-
-        stringRedisTemplate.opsForHash().putAll(imageDetailKey, hashFields);
-    }
-
-    private PictureReviewDTO buildImageInfoMap(String preSignedUrl, String objectName, String imageId, Long userId) {
-        PictureReviewDTO pictureReviewDTO = new PictureReviewDTO();
-        pictureReviewDTO.setObjectName(objectName);
-        pictureReviewDTO.setUserId(userId);
-        pictureReviewDTO.setPreSignedUrl(preSignedUrl);
-        pictureReviewDTO.setImageId(imageId);
-        pictureReviewDTO.setStatus("PENDING");
-        pictureReviewDTO.setUploadTime(System.currentTimeMillis());
-        return pictureReviewDTO;
+    private DetectHistory buildImageInfoMap(String preSignedUrl, String objectName, String imageId, Long userId) {
+        DetectHistory dto = new DetectHistory();
+        dto.setStatus(1);
+        dto.setUserId(userId);
+        dto.setObjectName(objectName);
+        dto.setDetectType("image");
+        dto.setPresignedUrl(preSignedUrl);
+        dto.setObjectId(imageId);
+        return dto;
     }
 
     private void addImageId(String imageListKey, String imageId) {
@@ -204,5 +190,15 @@ public class ReviewService{
         } catch (Exception e) {
             LOGGER.error("统计用户图片审核数量失败");
         }
+    }
+
+    public PictureResponseDTO getPictureResult(String imageId, Long userId) {
+        DetectHistory detectHistory = detectHistoryMapper.selectByImageId(imageId, userId);
+        PictureResponseDTO resDto = new PictureResponseDTO();
+        resDto.setTaskId(detectHistory.getObjectId());
+        resDto.setStatus(detectHistory.getStatus());
+        resDto.setConfidence(detectHistory.getConfidence());
+        resDto.setViolationType(detectHistory.getViolationType());
+        return resDto;
     }
 }

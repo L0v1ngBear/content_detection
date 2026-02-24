@@ -5,11 +5,15 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
 import java.util.Set;
 import java.util.StringJoiner;
 
+@Component
 /**
  * 通用必填字段校验工具类
  * 支持任意实体类的注解式校验，复用性强，无需重复编写校验逻辑
@@ -21,6 +25,10 @@ public class ValidationUtils {
     // 静态持有校验器（Spring环境下可通过注入获取，非Spring环境需手动初始化）
     private static Validator validator;
 
+    @Autowired
+    public void setValidator(Validator validator) {
+        ValidationUtils.validator = validator;
+    }
     /**
      * 初始化校验器（非Spring环境调用，Spring环境无需手动调用，直接注入Validator即可）
      */

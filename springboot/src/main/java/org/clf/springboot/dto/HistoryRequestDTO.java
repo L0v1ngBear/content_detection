@@ -33,6 +33,7 @@ public class HistoryRequestDTO {
     /**
      * 检测状态（0-待检测，1-检测中，2-检测成功，3-检测失败）
      */
+    // 需要做一层转换
     private Integer status;
 
     /**
