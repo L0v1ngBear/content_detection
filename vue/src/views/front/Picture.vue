@@ -31,8 +31,9 @@
 
           <!-- 图片预览 -->
           <div class="image-preview" v-if="previewUrl">
-            <img :src="previewUrl" alt="预览" class="preview-img"/>
+            <img :src="previewUrl" alt="预览" class="preview-img" @click="viewOriginalImage"/>
             <button class="close-preview" @click="clearPreview">×</button>
+            <div class="image-size-tip">{{ imageFile ? `${(imageFile.size / 1024).toFixed(1)}KB` : '' }}</div>
           </div>
 
           <!-- 上传按钮容器 -->
@@ -91,6 +92,7 @@
             <div class="spinner"></div>
           </div>
           <p class="detecting-text">{{ detectResult.detectMsg }}</p>
+          <p class="polling-tip" v-if="detectResult.detectStatus === 'polling'">已等待{{ pollCount }}秒</p>
         </div>
 
         <!-- 错误 -->
@@ -115,6 +117,10 @@
             <div class="result-item">
               <span class="label">文件名称：</span>
               <span class="value">{{ detectResult.yoloResult.filename }}</span>
+            </div>
+            <div class="result-item">
+              <span class="label">文件大小：</span>
+              <span class="value">{{ imageFile ? `${(imageFile.size / 1024).toFixed(1)}KB` : '' }}</span>
             </div>
             <div class="result-item">
               <span class="label">检测时间：</span>
@@ -143,15 +149,16 @@
 </template>
 
 <script>
-import { ref, reactive, onUnmounted, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ref, reactive, onUnmounted, onMounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import request from '../../utils/request';
 
 export default {
   name: "AIImageDetect",
   setup() {
     const router = useRouter();
+    const route = useRoute(); // 使用useRoute获取响应式路由对象
 
     // 响应式变量
     const imageFile = ref(null);
@@ -161,7 +168,9 @@ export default {
     const isLogin = ref(true); // 模拟已登录
     const isDetectingFlag = ref(false);
     const previewUrl = ref('');
-    let pollTimer = null;
+    const pollTimer = ref(null); // 改为ref便于响应式追踪
+    const pollCount = ref(0); // 轮询计时
+    const maxPollTimes = 60; // 最大轮询次数（60秒）
 
     // 违规类型映射（严格匹配后端返回的大小写：Normal/Adult/Violent）
     const violationTypeMap = {
@@ -195,7 +204,10 @@ export default {
 
     // 跳转登录
     const goToLogin = () => {
-      router.push({path: '/login', query: {redirect: router.currentRoute.fullPath}});
+      router.push({
+        path: '/login',
+        query: { redirect: route.fullPath } // 使用useRoute的响应式对象
+      });
     };
 
     // 跳转历史记录
@@ -208,24 +220,56 @@ export default {
       isDetectingFlag.value = ['submitting', 'polling'].includes(detectResult.detectStatus);
     };
 
+    // 监听检测状态变化，自动更新检测中标识
+    watch([() => detectResult.detectStatus], () => {
+      updateDetectingStatus();
+    }, { immediate: true });
+
     // 生成图片预览
     const createPreview = (file) => {
-      if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
+      // 安全释放旧的URL
+      if (previewUrl.value) {
+        try {
+          URL.revokeObjectURL(previewUrl.value);
+        } catch (e) {
+          console.warn('释放预览URL失败:', e);
+        }
+      }
       previewUrl.value = URL.createObjectURL(file);
+    };
+
+    // 查看原图
+    const viewOriginalImage = () => {
+      if (previewUrl.value) {
+        window.open(previewUrl.value, '_blank');
+      }
     };
 
     // 清空预览
     const clearPreview = () => {
-      if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
-      previewUrl.value = '';
+      // 清理预览资源
+      if (previewUrl.value) {
+        try {
+          URL.revokeObjectURL(previewUrl.value);
+        } catch (e) {
+          console.warn('释放预览URL失败:', e);
+        }
+        previewUrl.value = '';
+      }
+
+      // 清理文件引用
       imageFile.value = null;
+
+      // 重置检测状态
       detectResult.detectStatus = 'idle';
       detectResult.detectMsg = '';
       detectResult.taskId = '';
+      pollCount.value = 0;
+
       // 清空轮询定时器
-      if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
+      if (pollTimer.value) {
+        clearInterval(pollTimer.value);
+        pollTimer.value = null;
       }
     };
 
@@ -246,6 +290,29 @@ export default {
       }
     };
 
+    // 验证文件是否为有效图片
+    const validateImageFile = (file) => {
+      if (!file) return { valid: false, message: '未选择文件' };
+
+      // 格式校验
+      if (!allowImageTypes.includes(file.type)) {
+        return {
+          valid: false,
+          message: '仅支持 JPG/PNG/WEBP 格式！'
+        };
+      }
+
+      // 大小校验
+      if (file.size > maxImageSize) {
+        return {
+          valid: false,
+          message: `图片大小超过 5MB 限制，当前：${(file.size / 1024 / 1024).toFixed(2)}MB`
+        };
+      }
+
+      return { valid: true };
+    };
+
     // 处理文件选择
     const handleImageFile = (file) => {
       if (!isLogin.value) {
@@ -253,30 +320,25 @@ export default {
         goToLogin();
         return;
       }
-      if (!file) return;
+
+      // 验证文件有效性
+      const validation = validateImageFile(file);
+      if (!validation.valid) {
+        detectResult.detectStatus = 'error';
+        detectResult.detectMsg = validation.message;
+        return;
+      }
 
       // 重置状态
       detectResult.detectStatus = 'idle';
       detectResult.detectMsg = '';
       detectResult.taskId = '';
-
-      // 格式校验
-      if (!allowImageTypes.includes(file.type)) {
-        detectResult.detectStatus = 'error';
-        detectResult.detectMsg = '仅支持 JPG/PNG/WEBP 格式！';
-        return;
-      }
-
-      // 大小校验
-      if (file.size > maxImageSize) {
-        detectResult.detectStatus = 'error';
-        detectResult.detectMsg = `图片大小超过 5MB 限制，当前：${(file.size / 1024 / 1024).toFixed(2)}MB`;
-        return;
-      }
+      pollCount.value = 0;
 
       // 生成预览
       createPreview(file);
       imageFile.value = file;
+
       // 开始检测
       handleImageAIDetect();
     };
@@ -285,16 +347,21 @@ export default {
     const handleImageChange = (e) => {
       const file = e.target.files?.[0];
       if (file) handleImageFile(file);
+
       // 重置input值
       setTimeout(() => {
-        if (fileInputRef.value) fileInputRef.value.value = '';
+        if (fileInputRef.value) {
+          fileInputRef.value.value = '';
+        }
       }, 100);
     };
 
     // 拖拽上传
     const handleDragOver = (e) => {
       e.preventDefault();
-      if (!isDetectingFlag.value && isLogin.value) dragOver.value = true;
+      if (!isDetectingFlag.value && isLogin.value) {
+        dragOver.value = true;
+      }
     };
 
     const handleDragLeave = (e) => {
@@ -305,35 +372,85 @@ export default {
     const handleDrop = (e) => {
       e.preventDefault();
       dragOver.value = false;
+
       if (!isLogin.value) {
         ElMessage.warning('请先登录');
         goToLogin();
         return;
       }
+
       if (isDetectingFlag.value) return;
+
       const file = e.dataTransfer.files?.[0];
-      if (file) handleImageFile(file);
+      if (file) {
+        // 先验证拖拽文件类型
+        const validation = validateImageFile(file);
+        if (!validation.valid) {
+          ElMessage.error(validation.message);
+          return;
+        }
+        handleImageFile(file);
+      }
+    };
+
+    // 停止轮询并清理
+    const stopPolling = (errorMsg = '') => {
+      if (pollTimer.value) {
+        clearInterval(pollTimer.value);
+        pollTimer.value = null;
+      }
+      pollCount.value = 0;
+
+      if (errorMsg) {
+        detectResult.detectStatus = 'error';
+        detectResult.detectMsg = errorMsg;
+        updateDetectingStatus();
+      }
     };
 
     // 轮询获取YOLO检测结果（核心：严格按Normal判定合规）
     const startPollResult = () => {
       // 防止重复轮询
-      if (pollTimer) clearInterval(pollTimer);
+      stopPolling();
+
+      pollCount.value = 0;
+      detectResult.detectStatus = 'polling';
+      detectResult.detectMsg = '提交成功，等待YOLO检测...';
 
       // 每1秒轮询一次
-      pollTimer = setInterval(async () => {
+      pollTimer.value = setInterval(async () => {
+        pollCount.value++;
+
+        // 轮询超时处理
+        if (pollCount.value >= maxPollTimes) {
+          stopPolling('检测超时，请重新上传图片');
+          ElMessage.error('检测超时');
+          return;
+        }
+
         try {
           const res = await request({
             url: '/review/picture/result',
             method: 'get',
-            params: {taskId: detectResult.taskId}
+            params: { taskId: detectResult.taskId },
+            timeout: 5000 // 轮询接口超时时间
           });
+
+          // 空值校验
+          if (!res) {
+            throw new Error('获取检测结果为空');
+          }
 
           if (res.code !== 200) {
             throw new Error(res.msg || '获取检测结果失败');
           }
 
           const data = res.data;
+          // 数据格式校验
+          if (!data || typeof data.status !== 'number') {
+            throw new Error('检测结果格式异常');
+          }
+
           // 任务状态：0=排队中 1=检测中 2=完成 3=失败
           switch (data.status) {
             case 0:
@@ -344,40 +461,43 @@ export default {
               break;
             case 2:
               // 检测完成 - 核心逻辑：仅Normal为合规
-              clearInterval(pollTimer);
-              pollTimer = null;
+              stopPolling();
               detectResult.detectStatus = 'success';
 
               // 1. 获取后端原始违规类型（严格匹配大小写）
               const rawViolationType = data.violationType || 'Normal';
-              // 2. 映射为中文展示
-              const showViolationType = violationTypeMap[rawViolationType] || '未知违规类型';
+              // 2. 映射为中文展示（增加默认值）
+              const showViolationType = violationTypeMap[rawViolationType] || rawViolationType;
               // 3. 判定是否合规（仅Normal为true）
               const isPass = rawViolationType === 'Normal';
 
-              // 4. 赋值最终结果
+              // 4. 赋值最终结果（增加空值校验）
               detectResult.yoloResult = {
-                filename: imageFile.value.name,
+                filename: imageFile.value?.name || '未知文件',
                 detectTime: new Date().toLocaleString(),
                 isPass: isPass,          // 核心：仅Normal为true
                 violationType: showViolationType,
-                confidence: data.confidence || 0 // 读取后端置信度
+                confidence: typeof data.confidence === 'number' ? data.confidence : 0 // 读取后端置信度
               };
               ElMessage.success('YOLO检测完成');
               break;
             case 3:
               // 检测失败
-              clearInterval(pollTimer);
-              pollTimer = null;
-              detectResult.detectStatus = 'error';
-              detectResult.detectMsg = data.msg || 'YOLO检测失败';
+              stopPolling(data.msg || 'YOLO检测失败');
               break;
+            default:
+              throw new Error(`未知的任务状态：${data.status}`);
           }
         } catch (err) {
           console.error('轮询失败：', err);
-          // 轮询失败不立即终止，继续尝试
+          // 轮询失败超过3次则停止
+          if (pollCount.value % 3 === 0) {
+            ElMessage.warning(`轮询失败${pollCount.value % 3 + 1}次：${err.message}`);
+          }
         }
       }, 1000);
+
+      updateDetectingStatus();
     };
 
     // 提交图片到后端（修复taskId取值错误）
@@ -397,22 +517,37 @@ export default {
           url: '/review/picture',
           method: 'post',
           data: formData,
-          headers: {'Content-Type': 'multipart/form-data'},
+          headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 30000
         });
 
+        // 空值和格式校验
+        if (!res) {
+          throw new Error('上传响应为空');
+        }
+
         if (res?.code === 200) {
+          // 校验taskId有效性
+          if (!res.data || typeof res.data !== 'string') {
+            throw new Error('获取的任务ID无效');
+          }
+
           detectResult.taskId = res.data;
-          detectResult.detectStatus = 'polling';
-          detectResult.detectMsg = '提交成功，等待YOLO检测...';
           // 启动轮询
           startPollResult();
         } else {
           throw new Error(res?.msg || '图片提交失败');
         }
       } catch (err) {
+        console.error('图片检测提交失败：', err);
         detectResult.detectStatus = 'error';
-        detectResult.detectMsg = err.message || '图片提交失败，请检查网络！';
+
+        // 区分超时错误
+        if (err.message.includes('timeout')) {
+          detectResult.detectMsg = '上传超时，请检查网络后重试';
+        } else {
+          detectResult.detectMsg = err.message || '图片提交失败，请检查网络！';
+        }
       } finally {
         updateDetectingStatus();
       }
@@ -426,8 +561,18 @@ export default {
 
     onUnmounted(() => {
       // 清理资源
-      if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
-      if (pollTimer) clearInterval(pollTimer);
+      if (previewUrl.value) {
+        try {
+          URL.revokeObjectURL(previewUrl.value);
+        } catch (e) {
+          console.warn('组件卸载时释放预览URL失败:', e);
+        }
+      }
+
+      // 停止轮询
+      stopPolling();
+
+      // 清理引用
       imageFile.value = null;
     });
 
@@ -439,6 +584,8 @@ export default {
       isDetectingFlag,
       isLogin,
       previewUrl,
+      imageFile,
+      pollCount,
       triggerFileInput,
       handleImageChange,
       handleDragOver,
@@ -447,7 +594,8 @@ export default {
       clearPreview,
       clearDetection,
       goToLogin,
-      goToHistoryPage
+      goToHistoryPage,
+      viewOriginalImage
     };
   }
 };
@@ -533,6 +681,7 @@ export default {
   max-height: 180px;
   border-radius: 12px;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .preview-img {
@@ -554,6 +703,18 @@ export default {
   border: none;
   font-size: 16px;
   cursor: pointer;
+  z-index: 10;
+}
+
+.image-size-tip {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .upload-btn-container {
@@ -667,7 +828,7 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
 }
 
 .loading-spinner {
@@ -687,6 +848,11 @@ export default {
 .detecting-text {
   font-size: 18px;
   color: #475569;
+}
+
+.polling-tip {
+  font-size: 14px;
+  color: #94a3b8;
 }
 
 /* 错误状态 */

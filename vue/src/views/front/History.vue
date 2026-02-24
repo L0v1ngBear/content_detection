@@ -250,7 +250,7 @@ export default {
             <div class="list-col col-time">{{ item.detectTime || '未知时间' }}</div>
             <div class="list-col col-type-item">
               <span class="type-tag" :class="item.detectType === 'picture' ? 'tag-image' : 'tag-video'">
-                {{ item.detectType === 'picture' ? '图片' : '视频' }}
+                {{ item.detectType === 'image' ? '图片' : '视频' }}
               </span>
             </div>
             <div class="list-col col-name">{{ item.fileName || '未命名文件' }}</div>
