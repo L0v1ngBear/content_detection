@@ -88,6 +88,7 @@ public class ReviewService{
             String originalName = file.getOriginalFilename();
             String suffix = originalName.substring(originalName.lastIndexOf(".")); // 提取后缀（如.jpg）
             String objectName = "user/upload/" + UUID.randomUUID().toString().replace("-", "") + suffix;
+
             // 上传图片到minio，此处objectName与imageId有异
             minIOUtils.uploadFile(file, objectName);
             String preSignedUrl = minIOUtils.getPresignedUrl(objectName);
@@ -103,7 +104,7 @@ public class ReviewService{
             // 单张图片详情
             String imageDetailKey = redisPrefix + userId + imageId;
             // 封装图片信息
-            DetectHistory imageInfo = buildImageInfoMap(preSignedUrl, objectName, imageId, userId);
+            DetectHistory imageInfo = buildImageInfoMap(preSignedUrl, objectName, imageId, userId, originalName);
 
             // 发送到消息队列，存入mysql
             rabbitTemplate.convertAndSend(RabbitMqConfig.MYSQL_EXCHANGE_NAME,
@@ -142,7 +143,7 @@ public class ReviewService{
         }
     }
 
-    private DetectHistory buildImageInfoMap(String preSignedUrl, String objectName, String imageId, Long userId) {
+    private DetectHistory buildImageInfoMap(String preSignedUrl, String objectName, String imageId, Long userId, String originalName) {
         DetectHistory dto = new DetectHistory();
         dto.setStatus(1);
         dto.setUserId(userId);
@@ -150,6 +151,7 @@ public class ReviewService{
         dto.setDetectType("image");
         dto.setPresignedUrl(preSignedUrl);
         dto.setObjectId(imageId);
+        dto.setFileName(originalName);
         return dto;
     }
 

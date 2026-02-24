@@ -4,13 +4,18 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.clf.springboot.dto.DetectHistoryResponseDTO;
 import org.clf.springboot.dto.HistoryRequestDTO;
 import org.clf.springboot.entity.DetectHistory;
 import org.clf.springboot.mapper.DetectHistoryMapper;
 import org.clf.springboot.service.Impl.HistoryServiceImpl;
 import org.clf.springboot.utils.UserContextHolder;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class HistoryService extends ServiceImpl<DetectHistoryMapper, DetectHistory>
@@ -53,6 +58,8 @@ public class HistoryService extends ServiceImpl<DetectHistoryMapper, DetectHisto
         wrapper.orderByDesc(DetectHistory::getDetectTime);
 
         // 3. 执行分页查询
+
+
         return baseMapper.selectPage(page, wrapper);
     }
 }

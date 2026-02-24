@@ -18,4 +18,7 @@ public interface DetectHistoryMapper extends BaseMapper<DetectHistory> {
 
     @Update("update detect_history set status = #{status} , detect_time = #{detectTime}, violation_type = #{violationType} , confidence = #{confidence} where object_id = #{objectId}")
     void updateStatusById(DetectHistory detectHistory);
+
+    @Update("update detect_history set status = #{status} where object_id = #{objectId}")
+    void updateErrorStatus(DetectHistory detectHistory);
 }

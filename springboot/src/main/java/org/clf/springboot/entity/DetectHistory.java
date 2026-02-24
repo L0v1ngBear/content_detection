@@ -30,4 +30,6 @@ public class DetectHistory {
     private String objectId;
 
     private Double confidence;
+
+    private String fileName;
 }

@@ -1,10 +1,12 @@
 package org.clf.springboot.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import org.clf.springboot.common.Result;
 import org.clf.springboot.common.enums.ErrorEnum;
+import org.clf.springboot.dto.DetectHistoryResponseDTO;
 import org.clf.springboot.dto.HistoryRequestDTO;
 import org.clf.springboot.dto.MsgRequestDTO;
 import org.clf.springboot.dto.StaticsResponseDTO;
@@ -16,6 +18,7 @@ import org.clf.springboot.service.WebService;
 import org.clf.springboot.utils.UserContextHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -50,10 +53,25 @@ public class WebController {
                 queryDTO.setPageSize(10);
             }
             // 2. 调用Service查询
-            IPage<DetectHistory> pageResult = historyService.getHistoryByUserId(queryDTO);
+             IPage<DetectHistory> pageResult = historyService.getHistoryByUserId(queryDTO);
+
+            Page<DetectHistoryResponseDTO> resultPage = new Page<>();
+
+            BeanUtils.copyProperties(pageResult, resultPage);
+
+            // 5. 转换数据列表（实体 -> DTO）
+            List<DetectHistoryResponseDTO> dtoList = pageResult.getRecords().stream()
+                    .map(detectHistory -> {
+                        DetectHistoryResponseDTO dto = new DetectHistoryResponseDTO();
+                        // 复制字段（仅复制 DTO 中存在的字段）
+                        BeanUtils.copyProperties(detectHistory, dto);
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+            resultPage.setRecords(dtoList);
 
             // 3. 构造返回结果（HTTP状态码200，业务码200）
-            return Result.success(200, "查询成功", pageResult);
+            return Result.success(200, "查询成功", resultPage);
 
         } catch (Exception e) {
             // 异常处理：返回HTTP 500，业务码500``

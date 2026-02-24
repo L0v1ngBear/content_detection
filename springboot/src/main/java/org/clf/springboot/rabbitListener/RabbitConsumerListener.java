@@ -106,6 +106,9 @@ public class RabbitConsumerListener {
             logger.info("图片入库成功，图片id{}", imageId);
         } catch (Exception e) {
 
+            detectHistory.setStatus(3);
+            detectHistoryMapper.updateErrorStatus(detectHistory);
+
             // 异常转入人工审核
         }
 
