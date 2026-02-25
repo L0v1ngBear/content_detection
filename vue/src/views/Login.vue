@@ -367,7 +367,7 @@ const validateForm = () => {
  */
 const handleLoginSuccess = (loginResponse) => {
   // 1. 提取后端 LoginResponseDTO 中的核心数据（解构赋值，更清晰）
-  const {userName, accessToken, refreshToken, expireTime} = loginResponse.data || {};
+  const {userName, accessToken, refreshToken, expireTime, userId} = loginResponse.data || {};
 
   // 2. 存储 JWT Access Token（必要，后续接口请求需携带该令牌）
   if (userName) {
@@ -391,7 +391,9 @@ const handleLoginSuccess = (loginResponse) => {
     localStorage.setItem("tokenExpireTimestamp", expireTimestamp);
     console.log("Access Token 过期时间戳：", new Date(expireTimestamp));
   }
-
+  if (userId) {
+    localStorage.setItem("userId", userId);
+  }
   // 5. 处理「记住我」逻辑（仅密码登录有效，存储用户名）
   if (loginForm.rememberMe && loginForm.loginType === 'PASSWORD') {
     localStorage.setItem("rememberedUsername", loginForm.username);

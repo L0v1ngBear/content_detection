@@ -22,7 +22,8 @@ export default {
       startTime: '',
       endTime: '',
       status: '',
-      detectType: ''
+      detectType: '',
+      fileName: '' // 新增：文件名称搜索条件
     });
 
     // 新增：图片预览相关状态
@@ -124,7 +125,8 @@ export default {
           startTime: filterForm.startTime ? `${filterForm.startTime} 00:00:00` : '',
           endTime: filterForm.endTime ? `${filterForm.endTime} 23:59:59` : '',
           status: filterForm.status === '' ? '' : parseInt(filterForm.status),
-          detectType: filterForm.detectType === '' ? '' : filterForm.detectType
+          detectType: filterForm.detectType === '' ? '' : filterForm.detectType,
+          fileName: filterForm.fileName.trim() // 新增：传递文件名搜索参数
         };
 
         Object.keys(params).forEach(key => {
@@ -210,6 +212,7 @@ export default {
       filterForm.endTime = '';
       filterForm.status = '';
       filterForm.detectType = '';
+      filterForm.fileName = ''; // 新增：重置文件名搜索框
       pagination.pageNum = 1;
       ElMessage.info('筛选条件已重置，将加载全部检测记录');
       getHistoryList();
@@ -271,6 +274,17 @@ export default {
             v-model="filterForm.endTime"
             class="filter-input"
             placeholder="结束时间"
+        />
+      </div>
+      <!-- 新增：文件名称搜索框 -->
+      <div class="filter-item">
+        <label>文件名称：</label>
+        <input
+            type="text"
+            v-model="filterForm.fileName"
+            class="filter-input"
+            placeholder="请输入文件名关键词"
+            maxlength="50"
         />
       </div>
       <div class="filter-item">
@@ -421,21 +435,25 @@ export default {
   color: #1a2b48;
   background-color: #ffffff;
 }
+
 .history-page-title {
   text-align: center;
   margin-bottom: 32px;
 }
+
 .history-page-title h2 {
   font-size: 28px;
   font-weight: 600;
   margin-bottom: 8px;
   color: #1a2b48;
 }
+
 .history-page-title p {
   font-size: 16px;
   color: #4e5d78;
   margin: 0;
 }
+
 .history-filter-box {
   display: flex;
   flex-wrap: wrap;
@@ -447,16 +465,19 @@ export default {
   border-radius: 12px;
   margin-bottom: 24px;
 }
+
 .filter-item {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .filter-item label {
   font-size: 14px;
   color: #1a2b48;
   font-weight: 500;
 }
+
 .filter-input {
   padding: 8px 12px;
   border: 1px solid #e6e9ed;
@@ -466,13 +487,16 @@ export default {
   outline: none;
   transition: border-color 0.3s ease;
 }
+
 .filter-input:focus {
   border-color: #409eff;
 }
+
 .filter-split {
   font-size: 14px;
   color: #4e5d78;
 }
+
 .filter-select {
   padding: 8px 12px;
   border: 1px solid #e6e9ed;
@@ -483,14 +507,17 @@ export default {
   transition: border-color 0.3s ease;
   background-color: #ffffff;
 }
+
 .filter-select:focus {
   border-color: #409eff;
 }
+
 .filter-actions {
   display: flex;
   gap: 12px;
   margin-left: auto;
 }
+
 .btn {
   padding: 8px 16px;
   border-radius: 8px;
@@ -500,22 +527,27 @@ export default {
   transition: all 0.3s ease;
   border: none;
 }
+
 .filter-btn {
   background-color: #409eff;
   color: #ffffff;
 }
+
 .filter-btn:hover {
   background-color: #337ecc;
   box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
 }
+
 .reset-btn {
   background-color: #f0f2f5;
   color: #4e5d78;
 }
+
 .reset-btn:hover {
   background-color: #e6e9ed;
   color: #1a2b48;
 }
+
 .history-list-box {
   background-color: #fafbfc;
   border: 1px solid #e6e9ed;
@@ -523,6 +555,7 @@ export default {
   overflow: hidden;
   margin-bottom: 24px;
 }
+
 .history-loading {
   display: flex;
   flex-direction: column;
@@ -530,11 +563,13 @@ export default {
   justify-content: center;
   padding: 80px 20px;
 }
+
 .loading-text {
   font-size: 16px;
   color: #409eff;
   margin-bottom: 16px;
 }
+
 .loading-spinner {
   width: 32px;
   height: 32px;
@@ -543,6 +578,7 @@ export default {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
+
 @keyframes spin {
   0% {
     transform: rotate(0deg);
@@ -551,28 +587,34 @@ export default {
     transform: rotate(360deg);
   }
 }
+
 .history-list-header {
   display: flex;
   background-color: #e6f7ff;
   border-bottom: 1px solid #409eff;
 }
+
 .history-list-body {
   max-height: 600px;
   overflow-y: auto;
   min-height: 200px;
 }
+
 .history-list-item {
   display: flex;
   border-bottom: 1px solid #e6e9ed;
   transition: background-color 0.3s ease;
 }
+
 /* 新增：可点击的记录添加鼠标样式 */
 .history-list-item.cursor-pointer {
   cursor: pointer;
 }
+
 .history-list-item:hover {
   background-color: #f0f7ff;
 }
+
 .history-list-empty {
   display: flex;
   align-items: center;
@@ -580,32 +622,39 @@ export default {
   height: 200px;
   width: 100%;
 }
+
 .empty-content {
   text-align: center;
 }
+
 .empty-icon-small {
   width: 48px;
   height: 48px;
   fill: #c0c4cc;
   margin-bottom: 12px;
 }
+
 .empty-text-small {
   font-size: 14px;
   color: #909399;
   margin: 0;
 }
+
 .list-col {
   padding: 16px;
   flex: 1;
   text-align: center;
   font-size: 14px;
 }
+
 .col-time {
   flex: 2;
 }
+
 .col-type-item {
   flex: 1.5;
 }
+
 .col-name {
   flex: 3;
   text-align: left;
@@ -613,40 +662,49 @@ export default {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .col-status {
   flex: 2;
 }
+
 .col-violation-type {
   flex: 3;
 }
+
 .type-tag {
   padding: 4px 12px;
   border-radius: 16px;
   font-size: 12px;
   font-weight: 500;
 }
+
 .tag-image {
   background-color: #e8f4f8;
   color: #4299e1;
 }
+
 .tag-video {
   background-color: #fdf2f8;
   color: #9f7aea;
 }
+
 .status-tag {
   padding: 4px 12px;
   border-radius: 16px;
   font-size: 12px;
   font-weight: 500;
 }
+
 .tag-pass {
   background-color: #f0fff4;
   color: #67c23a;
 }
+
 .tag-fail {
   background-color: #fff2f0;
   color: #f56c6c;
 }
+
 .history-pagination {
   display: flex;
   align-items: center;
@@ -656,6 +714,7 @@ export default {
   font-size: 14px;
   color: #4e5d78;
 }
+
 .pagination-btn {
   padding: 8px 16px;
   border-radius: 8px;
@@ -666,14 +725,17 @@ export default {
   cursor: pointer;
   transition: all 0.3s ease;
 }
+
 .pagination-btn:hover:not(:disabled) {
   background-color: #e6e9ed;
   color: #409eff;
 }
+
 .pagination-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
 .pagination-info {
   color: #4e5d78;
 }
@@ -687,6 +749,7 @@ export default {
   height: 100%;
   z-index: 1000;
 }
+
 .preview-mask {
   position: absolute;
   top: 0;
@@ -696,6 +759,7 @@ export default {
   background-color: rgba(0, 0, 0, 0.7);
   cursor: pointer;
 }
+
 .preview-content {
   position: absolute;
   top: 50%;
@@ -709,6 +773,7 @@ export default {
   overflow: auto;
   z-index: 1001;
 }
+
 .preview-close-btn {
   position: absolute;
   top: 16px;
@@ -722,25 +787,30 @@ export default {
   cursor: pointer;
   transition: color 0.3s ease;
 }
+
 .preview-close-btn:hover {
   color: #f56c6c;
 }
+
 .preview-header {
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid #e6e9ed;
 }
+
 .preview-filename {
   font-size: 16px;
   font-weight: 600;
   color: #1a2b48;
   margin: 0 0 8px 0;
 }
+
 .preview-status {
   font-size: 14px;
   color: #4e5d78;
   margin: 0;
 }
+
 .preview-loading {
   display: flex;
   flex-direction: column;
@@ -748,11 +818,13 @@ export default {
   justify-content: center;
   padding: 40px;
 }
+
 .preview-loading span {
   font-size: 14px;
   color: #409eff;
   margin-bottom: 16px;
 }
+
 .preview-image {
   max-width: 100%;
   max-height: 70vh;
@@ -760,6 +832,7 @@ export default {
   margin: 0 auto;
   border-radius: 8px;
 }
+
 .preview-error {
   display: flex;
   flex-direction: column;
@@ -768,6 +841,7 @@ export default {
   padding: 40px;
   text-align: center;
 }
+
 .preview-error p {
   font-size: 14px;
   color: #f56c6c;
@@ -779,57 +853,71 @@ export default {
   .history-container {
     max-width: 100%;
   }
+
   .col-type-item {
     flex: 1.2;
   }
+
   .col-name, .col-violation-type {
     flex: 2.5;
   }
 }
+
 @media (max-width: 768px) {
   .history-filter-box {
     flex-direction: column;
     align-items: flex-start;
   }
+
   .filter-actions {
     margin-left: 0;
     width: 100%;
     justify-content: flex-start;
   }
+
   .list-col {
     padding: 12px 8px;
     font-size: 12px;
   }
+
   .col-type-item {
     flex: 1;
   }
+
   .col-name, .col-violation-type {
     flex: 2;
   }
+
   .history-pagination {
     flex-direction: column;
     gap: 12px;
   }
+
   .preview-content {
     max-width: 95%;
     max-height: 95%;
   }
 }
+
 @media (max-width: 480px) {
   .history-container {
     padding: 20px 16px;
   }
+
   .history-page-title h2 {
     font-size: 24px;
   }
+
   .history-list-header {
     display: none;
   }
+
   .history-list-item {
     flex-direction: column;
     align-items: flex-start;
     padding: 16px;
   }
+
   .list-col {
     padding: 4px 0;
     text-align: left;
@@ -837,6 +925,7 @@ export default {
     display: flex;
     align-items: center;
   }
+
   .list-col::before {
     content: attr(data-label);
     font-weight: 500;
@@ -844,12 +933,34 @@ export default {
     color: #4e5d78;
     min-width: 80px;
   }
-  .col-time::before { content: '检测时间：'; }
-  .col-type-item::before { content: '检测类型：'; }
-  .col-name::before { content: '文件名称：'; }
-  .col-status::before { content: '检测状态：'; }
-  .col-violation-type::before { content: '违规类型：'; }
-  .history-list-empty { height: 150px; }
-  .empty-icon-small { width: 40px; height: 40px; }
+
+  .col-time::before {
+    content: '检测时间：';
+  }
+
+  .col-type-item::before {
+    content: '检测类型：';
+  }
+
+  .col-name::before {
+    content: '文件名称：';
+  }
+
+  .col-status::before {
+    content: '检测状态：';
+  }
+
+  .col-violation-type::before {
+    content: '违规类型：';
+  }
+
+  .history-list-empty {
+    height: 150px;
+  }
+
+  .empty-icon-small {
+    width: 40px;
+    height: 40px;
+  }
 }
 </style>

@@ -39,8 +39,8 @@
 
         <!-- 侧边栏底部功能区（整合消息、个人中心、退出登录） -->
         <div class="sidebar-footer">
-          <!-- 系统消息模块 - 核心优化（调整弹窗到按钮上方） -->
-          <div class="sidebar-function-item msg-wrapper" ref="msgWrapperRef" @click.stop="toggleMsgPopup()">
+          <!-- 系统消息模块 - 核心修改：点击直接跳转消息中心 -->
+          <div class="sidebar-function-item msg-wrapper" @click.stop="gotoMessageCenter()">
             <!-- 消息按钮 -->
             <button class="msg-btn" @click.stop>
               <svg viewBox="0 0 24 24" fill="#667085" class="msg-icon">
@@ -52,52 +52,6 @@
             </button>
             <!-- 消息文字 -->
             <span class="function-text" v-if="!isSidebarCollapsed">系统消息</span>
-
-            <!-- 消息弹窗（核心优化：定位到按钮上方） -->
-            <div class="msg-popup" v-show="isMsgPopupShow" @click.stop :style="popupStyle">
-              <!-- 弹窗头部 -->
-              <div class="msg-popup-header">
-                <h3 class="popup-title">未读系统消息</h3>
-                <div class="popup-header-actions">
-                  <button class="popup-clear-btn" @click="markAllAsRead()" :disabled="unreadMsgCount === 0">
-                    标为已读
-                  </button>
-                  <button class="popup-close-btn" @click.stop="isMsgPopupShow = false">×</button>
-                </div>
-              </div>
-
-              <!-- 弹窗内容 -->
-              <div class="msg-popup-content">
-                <!-- 修改：空状态改为“暂无未读消息” -->
-                <div class="msg-empty" v-if="unreadMsgCount === 0">
-                  <svg viewBox="0 0 24 24" fill="#dcdfe6" class="empty-icon">
-                    <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
-                  </svg>
-                  <p>暂无未读消息</p>
-                </div>
-
-                <!-- 修改：只渲染未读消息 -->
-                <div class="msg-item" v-for="(msg, index) in unreadMsgList" :key="index"
-                     :class="{ 'msg-unread': !msg.isRead }"
-                     @click.stop="viewMsgDetail(msg)">
-                  <div class="msg-item-header">
-                    <span class="msg-item-type" :class="msg.type">{{ getMsgTypeText(msg.type) }}</span>
-                    <span class="msg-item-time">{{ formatTime(msg.createTime) }}</span>
-                  </div>
-                  <div class="msg-item-content">
-                    {{ msg.content }}
-                  </div>
-                  <!-- 已读/未读标记 -->
-                  <div class="msg-read-tag" v-if="!msg.isRead">未读</div>
-                </div>
-              </div>
-
-              <!-- 弹窗底部 -->
-              <div class="msg-popup-footer">
-                <a href="javascript:;" class="msg-all-link" @click.stop="viewAllMsg()">查看所有消息</a>
-                <a href="javascript:;" class="msg-more-link" @click.stop="viewMoreMsg()" v-if="unreadMsgCount > 0">查看更多未读消息</a>
-              </div>
-            </div>
           </div>
 
           <!-- 个人中心 -->
@@ -199,7 +153,7 @@
 </template>
 
 <script setup>
-import {ref, onMounted, onUnmounted, watch, computed} from 'vue';
+import {ref, onMounted, onUnmounted, watch} from 'vue';
 import {useRouter} from 'vue-router';
 import {ElMessage, ElMessageBox} from 'element-plus';
 import request from '../utils/request';
@@ -210,19 +164,19 @@ const router = useRouter();
 // 响应式数据
 const isSidebarCollapsed = ref(false);
 const windowWidth = ref(window.innerWidth);
-const isMsgPopupShow = ref(false); // 消息弹窗显示/隐藏
 const msgList = ref([]); // 所有消息列表
 const unreadMsgCount = ref(0); // 未读消息数量
-const msgWrapperRef = ref(null); // 消息容器ref，用于定位
-const popupStyle = ref({}); // 弹窗动态样式
+const isLoadingMsg = ref(false); // 消息列表加载状态，防止重复请求
 
-// WebSocket相关
+// WebSocket核心配置
 const ws = ref(null); // WebSocket实例
 const wsReconnectTimer = ref(null); // 重连定时器
-const wsHeartbeatTimer = ref(null); // 心跳定时器
-const wsIsConnecting = ref(false); // 是否正在连接中
-const WS_HEARTBEAT_INTERVAL = 30000; // 心跳间隔30秒
+const heartBeatTimer = ref(null); // 心跳定时器
 const WS_RECONNECT_INTERVAL = 5000; // 重连间隔5秒
+const WS_HEARTBEAT_INTERVAL = 15000; // 缩短心跳间隔为15秒，提升保活稳定性
+const currentUserId = ref(''); // 用户ID
+const wsUrl = ref(''); // WebSocket连接地址
+const isWsConnected = ref(false); // 标记WebSocket是否已成功连接
 
 // 消息详情相关
 const showMsgDetail = ref(false); // 是否显示消息详情弹窗
@@ -233,11 +187,6 @@ const userInfo = ref({
   username: '',
   hasLogin: false,
   tokenExpired: false
-});
-
-// 新增：计算属性 - 只获取未读消息列表
-const unreadMsgList = computed(() => {
-  return msgList.value.filter(msg => !msg.isRead);
 });
 
 // 侧边栏导航菜单配置
@@ -260,7 +209,7 @@ const navMenus = ref([
   {
     path: "/front/history",
     name: "检测历史记录",
-    iconPath: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 21l4-4 4 4v-6.17l-2-2V13l2.81-2.81c.39-.39.39-1.02 0-1.41l-2.59-2.59c.39-.39 1.02-.39 1.41 0L12 10.59 9.19 7.79c-.39-.39-1.02-.39-1.41 0L5 10.59c-.39.39-.39 1.02 0 1.41L7.81 14 5 16.81c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 17.41l2.81 2.81c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0 1.41L14.19 14 17 11.19V13c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v1.59L13 7.41 10.19 10.21c-.39-.39-1.02-.39-1.41 0L6 7.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 9 19 11.19V5h-2v1.59L13 9.41 10.19 6.6c-.39-.39-1.02-.39-1.41 0L6 9.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 16.59 14.81 19.4c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0-1.41L16.81 13H19v6h-2v-1.59L13 10.59 10.19 13.4c-.39.39-1.02.39-1.41 0L6 10.59c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 12H19v-6h-2v1.59L13 7.41z"
+    iconPath: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 21l4-4 4 4v-6.17l-2-2V13l2.81-2.81c.39-.39.39-1.02 0-1.41l-2.59-2.59c.39-.39 1.02-.39 1.41 0L12 10.59 9.19 7.79c-.39-.39-1.02-.39-1.41 0L5 10.59c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 17.41l2.81 2.81c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0 1.41L14.19 14 17 11.19V13c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1h-4c-.55 0-1 .45-1 1v1.59L13 7.41 10.19 10.21c-.39-.39-1.02-.39-1.41 0L6 7.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 9 19 11.19V5h-2v1.59L13 9.41 10.19 6.6c-.39-.39-1.02-.39-1.41 0L6 9.41c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 16.59 14.81 19.4c.39.39 1.02.39 1.41 0l2.59-2.59c.39.39.39 1.02 0-1.41L16.81 13H19v6h-2v-1.59L13 10.59 10.19 13.4c-.39.39-1.02.39-1.41 0L6 10.59c-.39.39-.39 1.02 0 1.41l2.59 2.59c.39.39 1.02.39 1.41 0L12 9.41 14.81 6.6c.39-.39 1.02-.39 1.41 0l2.59 2.59c.39.39.39 1.02 0 1.41L16.81 12H19v-6h-2v1.59L13 7.41z"
   },
   {
     path: "/front/setting",
@@ -268,6 +217,18 @@ const navMenus = ref([
     iconPath: "M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14 2.81c-.04-.24-.24-.41-.48-.41h-4c-.24 0-.43.17-.47.41L9.25 5.35c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L.74 10.4c-.12.22-.07.47.12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94L10 21.19c.04.24.24.41.48.41h4c.24 0 .43-.17.47-.41l.75-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.03-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
   }
 ]);
+
+// 生成用户ID
+const generateUserId = () => {
+  const savedUserId = localStorage.getItem("userId");
+  if (savedUserId) {
+    return savedUserId;
+  }
+  // 如果没有保存的ID，生成一个临时ID并保存
+  const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+  localStorage.setItem("userId", newUserId);
+  return newUserId;
+};
 
 // 初始化用户信息
 const initUserInfo = async () => {
@@ -291,14 +252,14 @@ const initUserInfo = async () => {
       hasLogin: true,
       tokenExpired: false
     };
-    fetchUsername();
-    // 登录成功后初始化WebSocket连接
+    await fetchUsername();
+    currentUserId.value = generateUserId();
     initWebSocket();
     return;
   }
 
   await fetchUsername();
-  // 登录成功后初始化WebSocket连接
+  currentUserId.value = generateUserId();
   initWebSocket();
 };
 
@@ -330,10 +291,6 @@ const fetchUsername = async () => {
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
   ElMessage.info(isSidebarCollapsed.value ? '侧边栏已折叠' : '侧边栏已展开');
-  // 折叠后重新计算弹窗位置
-  if (isMsgPopupShow.value && msgWrapperRef.value) {
-    updatePopupPosition();
-  }
 };
 
 // 退出登录逻辑
@@ -359,6 +316,7 @@ const handleLogout = async (needConfirm = true) => {
   // 关闭WebSocket连接
   closeWebSocket();
 
+  // 清除登录信息
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("tokenExpireTime");
@@ -417,67 +375,69 @@ const handleUserInfoClick = () => {
       });
 };
 
-// 【核心修改：更新弹窗位置到「系统消息按钮上方、平台设置下方」】
-const updatePopupPosition = () => {
-  const wrapper = msgWrapperRef.value;
-  if (!wrapper) return;
-
-  const wrapperRect = wrapper.getBoundingClientRect();
-  const popupDom = document.querySelector('.msg-popup');
-  const popupHeight = popupDom ? popupDom.offsetHeight : 300; // 预估值
-
-  // 弹窗定位到「系统消息按钮的上方，底部与按钮顶部对齐」
-  popupStyle.value = {
-    position: 'fixed',
-    top: `${wrapperRect.top - popupHeight}px`, // 弹窗底部 = 按钮顶部
-    left: `${wrapperRect.left}px`, // 与按钮左对齐（侧边栏内）
-    zIndex: 9999,
-    width: isSidebarCollapsed.value ? '64px' : '220px' // 与侧边栏宽度一致
-  };
-};
-
-// 切换消息弹窗显示/隐藏（优化：调用位置更新）
-const toggleMsgPopup = () => {
+// 跳转到消息中心页面
+const gotoMessageCenter = () => {
   if (!userInfo.value.hasLogin) {
     ElMessage.warning('请先登录查看消息');
     handleLogin();
     return;
   }
-  isMsgPopupShow.value = !isMsgPopupShow.value;
 
-  if (isMsgPopupShow.value) {
-    // 延迟更新（确保弹窗DOM已渲染，获取正确高度）
-    setTimeout(() => {
-      updatePopupPosition();
-    }, 0);
-    if (msgList.value.length === 0) {
-      loadMsgList();
-    }
+  if (msgList.value.length === 0 && !isLoadingMsg.value) {
+    loadMsgList().then(() => {
+      router.push("/front/message-center")
+          .then(() => {
+            ElMessage.info(unreadMsgCount.value > 0
+                ? `您有${unreadMsgCount.value}条未读消息`
+                : '已进入消息中心');
+          })
+          .catch(err => {
+            console.error("❌ 跳转到消息中心失败：", err);
+            ElMessage.error('消息中心页面不存在，请检查路由配置');
+          });
+    });
+  } else {
+    router.push("/front/message-center")
+        .then(() => {
+          ElMessage.info(unreadMsgCount.value > 0
+              ? `您有${unreadMsgCount.value}条未读消息`
+              : '已进入消息中心');
+        })
+        .catch(err => {
+          console.error("❌ 跳转到消息中心失败：", err);
+          ElMessage.error('消息中心页面不存在，请检查路由配置');
+        });
   }
 };
 
-// 加载消息列表（初始化时调用）
+// 加载消息列表
 const loadMsgList = async () => {
+  if (isLoadingMsg.value) return;
+
   try {
+    isLoadingMsg.value = true;
     const response = await request({
       url: "/api/msg/list",
       method: "get",
-      params: {pageSize: 10}
+      params: {
+        pageSize: 10,
+        userId: currentUserId.value
+      }
     });
     const resData = response.data.records || [];
     msgList.value = resData;
-    // 只统计未读消息数量
     unreadMsgCount.value = resData.filter(msg => !msg.isRead).length;
 
     if (unreadMsgCount.value > 0) {
       ElMessage.info(`您有${unreadMsgCount.value}条未读消息`);
     }
-    // 移除无消息时的提示，避免重复提示
   } catch (error) {
     console.error("加载消息列表失败：", error);
     msgList.value = [];
     unreadMsgCount.value = 0;
     ElMessage.error('加载消息失败，请稍后重试');
+  } finally {
+    isLoadingMsg.value = false;
   }
 };
 
@@ -490,21 +450,14 @@ const markAllAsRead = async () => {
   try {
     await request({
       url: "/api/msg/all-read",
-      method: "post"
+      method: "post",
+      params: {userId: currentUserId.value}
     });
 
     // 同步更新本地消息状态
     msgList.value.forEach(msg => {
       msg.isRead = true;
     });
-
-    // 发送WebSocket消息通知服务端
-    if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-      ws.value.send(JSON.stringify({
-        type: 'MARK_ALL_READ',
-        timestamp: new Date().getTime()
-      }));
-    }
 
     unreadMsgCount.value = 0;
     ElMessage.success('所有未读消息已标记为已读');
@@ -518,36 +471,30 @@ const markAllAsRead = async () => {
 const getMsgTypeText = (type) => {
   switch (type) {
     case "SYSTEM":
+    case "system":
       return "系统通知";
     case "DETECT":
+    case "detect":
       return "检测结果";
+    case "IMAGE":
+    case "image":
+      return "图片检测";
     case "WARNING":
+    case "warning":
       return "预警提示";
     case "ERROR":
+    case "error":
       return "错误通知";
     default:
       return "未知消息";
   }
 };
 
-// 查看所有消息
-const viewAllMsg = () => {
-  isMsgPopupShow.value = false;
-  ElMessage.info('即将跳转到消息中心页面查看所有消息');
-  router.push("/front/message-center");
-};
-
-// 查看更多未读消息
-const viewMoreMsg = () => {
-  isMsgPopupShow.value = false;
-  ElMessage.info('即将跳转到消息中心页面查看更多未读消息');
-  router.push("/front/message-center?type=unread");
-};
-
 // 格式化时间
 const formatTime = (timeStr) => {
   if (!timeStr) return '未知时间';
-  const date = new Date(timeStr);
+  const timestamp = typeof timeStr === 'number' ? timeStr : new Date(timeStr).getTime();
+  const date = new Date(timestamp);
   return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
 };
 
@@ -570,7 +517,8 @@ const markSingleMsgRead = async () => {
   try {
     await request({
       url: `/api/msg/read/${currentMsg.value.id}`,
-      method: "post"
+      method: "post",
+      params: {userId: currentUserId.value}
     });
 
     // 同步更新本地消息状态
@@ -580,17 +528,7 @@ const markSingleMsgRead = async () => {
       msgList.value[index].isRead = true;
     }
 
-    // 发送WebSocket消息通知服务端
-    if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-      ws.value.send(JSON.stringify({
-        type: 'MARK_READ',
-        msgId: currentMsg.value.id,
-        timestamp: new Date().getTime()
-      }));
-    }
-
     unreadMsgCount.value = Math.max(0, unreadMsgCount.value - 1);
-
     ElMessage.success('消息已标记为已读');
   } catch (error) {
     console.error("标记单条消息为已读失败：", error);
@@ -598,25 +536,33 @@ const markSingleMsgRead = async () => {
   }
 };
 
-// ===================== WebSocket 核心功能 =====================
-// 初始化WebSocket连接
+// ===================== WebSocket 核心功能（稳定保活版） =====================
+// 初始化WebSocket连接（登录后保持长连接）
 const initWebSocket = () => {
-  // 未登录或正在连接中，不初始化
-  if (!userInfo.value.hasLogin || wsIsConnecting.value) return;
+  // 已有有效连接，直接返回
+  if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+    console.log('✅ WebSocket已有有效连接，无需重复初始化');
+    isWsConnected.value = true;
+    return;
+  }
 
-  // 关闭已有连接
+  // 未登录，不初始化
+  if (!userInfo.value.hasLogin || !currentUserId.value) {
+    isWsConnected.value = false;
+    return;
+  }
+
+  // 关闭旧连接（如果存在）
   closeWebSocket();
 
-  wsIsConnecting.value = true;
-  const accessToken = localStorage.getItem("accessToken");
+  // 构建连接地址
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const host = window.location.host;
-
-  // 构建WebSocket连接地址（携带token认证）
-  const wsUrl = `${protocol}//${host}/api/ws/message?token=${accessToken}`;
+  const host = "localhost:8080";
+  wsUrl.value = `${protocol}//${host}/ai-picture/result/${currentUserId.value}`;
+  console.log('开始连接WebSocket:', wsUrl.value);
 
   try {
-    ws.value = new WebSocket(wsUrl);
+    ws.value = new WebSocket(wsUrl.value);
 
     // 连接成功
     ws.value.onopen = handleWsOpen;
@@ -632,16 +578,19 @@ const initWebSocket = () => {
 
   } catch (error) {
     console.error('WebSocket初始化失败:', error);
-    wsIsConnecting.value = false;
-    // 启动重连机制
+    isWsConnected.value = false;
+    // 启动重连
     startWsReconnect();
   }
 };
 
 // WebSocket连接成功回调
 const handleWsOpen = () => {
-  console.log('✅ WebSocket连接成功');
-  wsIsConnecting.value = false;
+  console.log('✅ WebSocket连接成功', `userId=${currentUserId.value}`);
+  isWsConnected.value = true;
+
+  // 启动心跳保活（缩短为15秒，提升稳定性）
+  startHeartBeat();
 
   // 清除重连定时器
   if (wsReconnectTimer.value) {
@@ -649,64 +598,58 @@ const handleWsOpen = () => {
     wsReconnectTimer.value = null;
   }
 
-  // 启动心跳检测
-  startWsHeartbeat();
-
-  // 加载初始消息列表
+  // 只加载消息列表（移除离线消息接口调用）
   loadMsgList();
 
-  // 发送连接成功通知
-  ws.value.send(JSON.stringify({
-    type: 'CONNECT',
-    userId: userInfo.value.username,
-    timestamp: new Date().getTime()
-  }));
-
-  ElMessage.success('消息推送已连接，可接收实时消息');
+  ElMessage.success('消息推送已连接，将保持长连接接收实时检测结果');
 };
 
 // WebSocket接收消息回调
 const handleWsMessage = (event) => {
   try {
+    console.log('📩 收到WebSocket消息:', event.data);
     const message = JSON.parse(event.data);
-    console.log('📩 收到WebSocket消息:', message);
 
-    switch (message.type) {
-        // 新消息推送
-      case 'NEW_MESSAGE':
-        handleNewMessage(message.data);
-        break;
-        // 心跳响应
-      case 'PONG':
-        console.log('❤️ WebSocket心跳响应');
-        break;
-        // 消息已读确认
-      case 'READ_CONFIRM':
-        updateMessageReadStatus(message.msgId);
-        break;
-        // 系统通知
-      case 'SYSTEM_NOTICE':
-        ElMessage.info(`系统通知：${message.content}`);
-        break;
-      default:
-        console.log('未知消息类型:', message.type);
-    }
+    // 构建统一的消息格式
+    const newMsg = {
+      id: message.id || `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      content: message.content || JSON.stringify(message),
+      type: message.type || 'detect',
+      createTime: message.createTime || new Date().getTime(),
+      isRead: false,
+      userId: currentUserId.value,
+      rawData: message
+    };
+
+    // 处理新消息
+    handleNewMessage(newMsg);
 
   } catch (error) {
     console.error('WebSocket消息解析失败:', error, event.data);
+    // 解析失败时创建通用消息
+    const errorMsg = {
+      id: `ws_error_${Date.now()}`,
+      content: `收到系统消息：${event.data}`,
+      type: 'system',
+      createTime: new Date().getTime(),
+      isRead: false,
+      userId: currentUserId.value,
+    };
+
+    handleNewMessage(errorMsg);
   }
 };
 
 // 处理新消息推送
 const handleNewMessage = (msgData) => {
-  if (!msgData || !msgData.id) return;
+  if (!msgData) return;
 
   // 检查消息是否已存在
   const existsIndex = msgList.value.findIndex(item => item.id === msgData.id);
 
   if (existsIndex > -1) {
     // 更新已有消息
-    msgList.value[existsIndex] = { ...msgList.value[existsIndex], ...msgData };
+    msgList.value[existsIndex] = {...msgList.value[existsIndex], ...msgData};
   } else {
     // 添加新消息到列表头部
     msgList.value.unshift(msgData);
@@ -714,88 +657,80 @@ const handleNewMessage = (msgData) => {
     // 未读消息数+1
     if (!msgData.isRead) {
       unreadMsgCount.value += 1;
-
-      // 显示新消息提示
       ElMessage.info(`📩 收到新消息：${msgData.content.substring(0, 20)}${msgData.content.length > 20 ? '...' : ''}`);
     }
   }
 
-  // 限制消息列表长度，最多保留50条
+  // 限制消息列表长度
   if (msgList.value.length > 50) {
     msgList.value = msgList.value.slice(0, 50);
   }
 };
 
-// 更新消息已读状态
-const updateMessageReadStatus = (msgId) => {
-  const index = msgList.value.findIndex(item => item.id === msgId);
-  if (index > -1) {
-    msgList.value[index].isRead = true;
-    // 更新未读计数
-    unreadMsgCount.value = msgList.value.filter(msg => !msg.isRead).length;
-  }
-};
-
-// WebSocket连接关闭回调
+// WebSocket连接关闭回调（优化：仅异常关闭时重连）
 const handleWsClose = (event) => {
-  console.log(`🔌 WebSocket连接关闭 [${event.code}]`, event.reason);
-  wsIsConnecting.value = false;
+  console.log(`🔌 WebSocket连接关闭 [${event.code}]`, event.reason, `userId=${currentUserId.value}`);
+  isWsConnected.value = false;
 
-  // 停止心跳检测
-  stopWsHeartbeat();
+  // 停止心跳
+  stopHeartBeat();
 
-  // 非主动关闭（code 1000），启动重连
-  if (event.code !== 1000 && userInfo.value.hasLogin) {
-    ElMessage.warning('消息推送连接已断开，正在尝试重连...');
+  // 优化：仅异常关闭（非1000码）且登录状态下才重连
+  // 1000是正常关闭码，不需要重连；其他码都是异常关闭，需要重连
+  if (userInfo.value.hasLogin && event.code !== 1000) {
+    ElMessage.warning(`消息推送连接异常断开（码：${event.code}），正在尝试重连...`);
     startWsReconnect();
   }
 };
 
 // WebSocket错误回调
 const handleWsError = (error) => {
-  console.error('❌ WebSocket错误:', error);
-  wsIsConnecting.value = false;
+  console.error('❌ WebSocket错误:', error, `userId=${currentUserId.value}`);
+  isWsConnected.value = false;
 
-  // 启动重连机制
+  // 停止心跳
+  stopHeartBeat();
+
+  // 登录状态下启动重连
   if (userInfo.value.hasLogin) {
     startWsReconnect();
   }
 };
 
-// 启动WebSocket心跳检测
-const startWsHeartbeat = () => {
-  // 清除已有定时器
-  stopWsHeartbeat();
+// 启动心跳保活（缩短间隔，提升稳定性）
+const startHeartBeat = () => {
+  // 先清除旧的心跳定时器
+  stopHeartBeat();
 
-  // 定时发送心跳包
-  wsHeartbeatTimer.value = setInterval(() => {
+  // 15秒发送一次心跳（比30秒更稳定）
+  heartBeatTimer.value = setInterval(() => {
     if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-      ws.value.send(JSON.stringify({
-        type: 'PING',
-        timestamp: new Date().getTime()
-      }));
-      console.log('❤️ 发送WebSocket心跳包');
-    } else {
-      stopWsHeartbeat();
+      try {
+        ws.value.send(JSON.stringify({type: "ping", timestamp: Date.now()}));
+        console.log('💓 发送WebSocket心跳包');
+      } catch (error) {
+        console.error('发送心跳包失败:', error);
+        // 发送失败时主动触发重连
+        startWsReconnect();
+      }
     }
   }, WS_HEARTBEAT_INTERVAL);
 };
 
-// 停止WebSocket心跳检测
-const stopWsHeartbeat = () => {
-  if (wsHeartbeatTimer.value) {
-    clearInterval(wsHeartbeatTimer.value);
-    wsHeartbeatTimer.value = null;
+// 停止心跳保活
+const stopHeartBeat = () => {
+  if (heartBeatTimer.value) {
+    clearInterval(heartBeatTimer.value);
+    heartBeatTimer.value = null;
   }
 };
 
-// 启动WebSocket重连
+// 启动WebSocket重连（防重复重连）
 const startWsReconnect = () => {
   // 避免重复创建定时器
   if (wsReconnectTimer.value || !userInfo.value.hasLogin) return;
 
-  console.log(`🔄 ${WS_RECONNECT_INTERVAL/1000}秒后尝试重连WebSocket...`);
-
+  console.log(`⏳ ${WS_RECONNECT_INTERVAL/1000}秒后尝试重连WebSocket`);
   wsReconnectTimer.value = setTimeout(() => {
     initWebSocket();
   }, WS_RECONNECT_INTERVAL);
@@ -803,34 +738,43 @@ const startWsReconnect = () => {
 
 // 关闭WebSocket连接
 const closeWebSocket = () => {
-  // 停止重连
+  // 停止心跳和重连
+  stopHeartBeat();
   if (wsReconnectTimer.value) {
     clearTimeout(wsReconnectTimer.value);
     wsReconnectTimer.value = null;
   }
 
-  // 停止心跳
-  stopWsHeartbeat();
-
   // 关闭连接
   if (ws.value) {
     try {
-      // 发送关闭通知
-      if (ws.value.readyState === WebSocket.OPEN) {
-        ws.value.send(JSON.stringify({
-          type: 'DISCONNECT',
-          timestamp: new Date().getTime()
-        }));
-      }
-      // 主动关闭连接
+      // 正常关闭时不触发重连（code=1000）
       ws.value.close(1000, '客户端主动关闭');
     } catch (error) {
       console.error('关闭WebSocket失败:', error);
     }
     ws.value = null;
   }
+  isWsConnected.value = false;
+};
 
-  wsIsConnecting.value = false;
+// 点击空白处关闭弹窗
+const handleClickOutside = (e) => {
+  if (showMsgDetail.value) {
+    const detailPopup = document.querySelector('.msg-detail-popup');
+    const isClickInDetail = detailPopup && (detailPopup.contains(e.target) || e.target === detailPopup);
+    if (!isClickInDetail) {
+      closeMsgDetail();
+    }
+  }
+};
+
+// 响应式窗口适配
+const handleWindowResize = () => {
+  windowWidth.value = window.innerWidth;
+  if (windowWidth.value < 768) {
+    isSidebarCollapsed.value = true;
+  }
 };
 
 // ===================== 生命周期 =====================
@@ -839,21 +783,29 @@ onMounted(() => {
   window.addEventListener("resize", handleWindowResize);
   document.addEventListener("click", handleClickOutside);
 
+  // 初始化用户信息
   initUserInfo();
 
-  // 监听用户登录状态变化，自动连接/断开WebSocket
+  // 监听登录状态变化
   watch(
       () => userInfo.value.hasLogin,
       (newVal) => {
         if (newVal) {
-          // 登录成功，初始化WebSocket
+          // 登录成功，建立WebSocket长连接
+          currentUserId.value = generateUserId();
           initWebSocket();
+
+          // 额外防护：如果连接断开，定时检查并重连
+          setInterval(() => {
+            if (userInfo.value.hasLogin && !isWsConnected.value) {
+              initWebSocket();
+            }
+          }, 30000); // 30秒检查一次连接状态
         } else {
-          // 登出，关闭WebSocket
+          // 登出，关闭连接
           closeWebSocket();
           msgList.value = [];
           unreadMsgCount.value = 0;
-          isMsgPopupShow.value = false;
           showMsgDetail.value = false;
         }
       },
@@ -868,26 +820,6 @@ onUnmounted(() => {
   // 组件销毁时关闭WebSocket
   closeWebSocket();
 });
-
-// 响应式窗口适配（优化：弹窗位置重新计算）
-const handleWindowResize = () => {
-  windowWidth.value = window.innerWidth;
-  if (windowWidth.value < 768) {
-    isSidebarCollapsed.value = true;
-  }
-
-  // 弹窗显示时重新定位
-  if (isMsgPopupShow.value) {
-    updatePopupPosition();
-  }
-};
-
-// 点击空白处关闭消息弹窗
-const handleClickOutside = (e) => {
-  if (isMsgPopupShow.value && !e.target.closest(".msg-wrapper") && !e.target.closest(".msg-popup")) {
-    isMsgPopupShow.value = false;
-  }
-};
 </script>
 
 <style scoped>
@@ -920,7 +852,6 @@ const handleClickOutside = (e) => {
   background-color: #ffffff;
   border-right: 1px solid #e1e5eb;
   transition: all 0.3s ease;
-  overflow: visible !important; /* 确保弹窗不被遮挡 */
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -1026,7 +957,6 @@ const handleClickOutside = (e) => {
   border-top: 1px solid #e1e5eb;
   background-color: #f8fafc;
   flex-shrink: 0;
-  overflow: visible !important;
 }
 
 .sidebar-function-item {
@@ -1039,7 +969,6 @@ const handleClickOutside = (e) => {
   transition: all 0.2s ease;
   white-space: nowrap;
   position: relative;
-  overflow: visible !important;
 }
 
 .sidebar-function-item:hover {
@@ -1057,7 +986,6 @@ const handleClickOutside = (e) => {
   display: flex;
   align-items: center;
   position: relative;
-  overflow: visible !important;
 }
 
 .msg-btn {
@@ -1092,202 +1020,6 @@ const handleClickOutside = (e) => {
   align-items: center;
   justify-content: center;
   font-weight: 500;
-}
-
-/* 消息弹窗样式（核心调整：宽度与侧边栏一致，定位在按钮上方） */
-.msg-popup {
-  background-color: #ffffff;
-  border: 1px solid #e1e5eb;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-/* 弹窗头部 */
-.msg-popup-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e1e5eb;
-  background-color: #f8fafc;
-}
-
-.popup-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.popup-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #2c3e50;
-  margin: 0;
-}
-
-.popup-clear-btn {
-  background-color: #f0f7ff;
-  color: #409eff;
-  border: none;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.popup-clear-btn:hover:not(:disabled) {
-  background-color: #e6f0ff;
-}
-
-.popup-clear-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* 弹窗关闭按钮 */
-.popup-close-btn {
-  background: none;
-  border: none;
-  font-size: 16px;
-  color: #909399;
-  cursor: pointer;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.popup-close-btn:hover {
-  color: #667085;
-}
-
-/* 弹窗内容 */
-.msg-popup-content {
-  max-height: 400px;
-  overflow-y: auto;
-  padding: 0 16px;
-}
-
-/* 空消息状态 */
-.msg-empty {
-  padding: 48px 16px;
-  text-align: center;
-}
-
-.empty-icon {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 12px;
-}
-
-.msg-empty p {
-  font-size: 14px;
-  color: #909399;
-  margin: 0;
-}
-
-/* 消息项 */
-.msg-item {
-  padding: 16px 0;
-  border-bottom: 1px solid #f5f7fa;
-  transition: background-color 0.2s ease;
-  cursor: pointer;
-}
-
-.msg-item:hover {
-  background-color: #fafbfc;
-}
-
-/* 未读消息样式（强化） */
-.msg-unread {
-  background-color: #f0f7ff;
-  border-left: 3px solid #409eff;
-  padding-left: 13px;
-}
-
-/* 消息项头部 */
-.msg-item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: #909399;
-}
-
-.msg-item-time {
-  font-size: 12px;
-  color: #909399;
-}
-
-/* 消息内容 */
-.msg-item-content {
-  font-size: 14px;
-  color: #333;
-  line-height: 1.6;
-  margin-bottom: 8px;
-  word-wrap: break-word;
-  word-break: break-all;
-}
-
-/* 消息类型标签 */
-.msg-item-type {
-  display: inline-block;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  color: #ffffff;
-}
-
-.msg-item-type.system {
-  background-color: #409eff;
-}
-
-.msg-item-type.detect {
-  background-color: #67c23a;
-}
-
-.msg-item-type.warning {
-  background-color: #e6a23c;
-}
-
-.msg-item-type.error {
-  background-color: #f56c6c;
-}
-
-/* 已读/未读标记 */
-.msg-read-tag {
-  font-size: 12px;
-  color: #409eff;
-  background-color: #e6f0ff;
-  padding: 1px 6px;
-  border-radius: 3px;
-  display: inline-block;
-}
-
-/* 弹窗底部 */
-.msg-popup-footer {
-  padding: 12px 16px;
-  text-align: center;
-  border-top: 1px solid #e1e5eb;
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-}
-
-.msg-all-link, .msg-more-link {
-  font-size: 13px;
-  color: #409eff;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.msg-all-link:hover, .msg-more-link:hover {
-  color: #337ecc;
-  text-decoration: underline;
 }
 
 /* 个人信息样式 */
@@ -1342,6 +1074,7 @@ const handleClickOutside = (e) => {
   align-items: center;
   padding: 0 20px;
   flex-shrink: 0;
+  justify-content: space-between;
 }
 
 .header-toggle-btn {
@@ -1506,6 +1239,10 @@ const handleClickOutside = (e) => {
   background-color: #67c23a;
 }
 
+.type-tag.image {
+  background-color: #9c27b0;
+}
+
 .type-tag.warning {
   background-color: #e6a23c;
 }
@@ -1584,12 +1321,6 @@ const handleClickOutside = (e) => {
 
   .layout-content {
     padding: 16px;
-  }
-
-  /* 移动端消息弹窗适配 */
-  .msg-popup {
-    width: 64px !important;
-    left: 0 !important;
   }
 
   /* 移动端消息详情弹窗适配 */
