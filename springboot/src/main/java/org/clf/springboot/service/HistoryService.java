@@ -4,18 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import org.clf.springboot.dto.DetectHistoryResponseDTO;
 import org.clf.springboot.dto.HistoryRequestDTO;
 import org.clf.springboot.entity.DetectHistory;
 import org.clf.springboot.mapper.DetectHistoryMapper;
 import org.clf.springboot.service.Impl.HistoryServiceImpl;
 import org.clf.springboot.utils.UserContextHolder;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class HistoryService extends ServiceImpl<DetectHistoryMapper, DetectHistory>
@@ -52,6 +48,11 @@ public class HistoryService extends ServiceImpl<DetectHistoryMapper, DetectHisto
         // 检测类型筛选（模糊匹配，支持部分关键词）
         if (StringUtils.hasText(queryDTO.getDetectType())) {
             wrapper.like(DetectHistory::getDetectType, queryDTO.getDetectType());
+        }
+
+        // 文件名称筛选（模糊匹配，支持部分关键词）
+        if (StringUtils.hasText(queryDTO.getFileName())) {
+            wrapper.like(DetectHistory::getFileName, queryDTO.getFileName());
         }
 
         // 排序：按检测开始时间降序

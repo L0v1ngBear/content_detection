@@ -40,6 +40,8 @@ public class HistoryRequestDTO {
      * 检测类型（picture/video）
      */
     private String detectType;
+
+    private String fileName;
 }
 
 

@@ -2,10 +2,12 @@ package org.clf.springboot.rabbitListener;
 
 import com.rabbitmq.client.Channel;
 import jakarta.annotation.Resource;
-import org.clf.springboot.dto.PictureReviewDTO;
 import org.clf.springboot.entity.DetectHistory;
+import org.clf.springboot.entity.Msg;
 import org.clf.springboot.mapper.DetectHistoryMapper;
+import org.clf.springboot.mapper.MsgMapper;
 import org.clf.springboot.utils.ValidationUtils;
+import org.clf.springboot.websocket.ImageResultWebSocket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;
@@ -13,18 +15,17 @@ import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.AmqpHeaders;
-import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import com.alibaba.fastjson.JSONObject;
 import okhttp3.*;
 
-import java.util.Date;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.io.IOException;
-import java.util.Objects;
 
 
 @Component
@@ -50,6 +51,11 @@ public class RabbitConsumerListener {
 
     private static final Logger logger = LoggerFactory.getLogger(RabbitConsumerListener.class);
 
+    private static final Map<String, String> NORMAL_CLASSES = Map.of(
+            "Normal", "正常",
+            "Adult", "色情",
+            "Violent", "暴力"
+    );
     // 超时时间
     private static final int TIMEOUT_SECONDS = 30;
 
@@ -60,6 +66,12 @@ public class RabbitConsumerListener {
             .retryOnConnectionFailure(true)          // 连接失败自动重试
             .build();
 
+    @Resource
+    private ImageResultWebSocket imageResultWebSocket;
+
+    @Resource
+    private MsgMapper msgMapper;
+
     @RabbitListener(queues = "picture.queue")
     public void pictureReview(DetectHistory detectHistory,
                               Message message,
@@ -67,6 +79,8 @@ public class RabbitConsumerListener {
                               @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
         String imageId = detectHistory.getObjectId();
         String imageUrl = detectHistory.getPresignedUrl();
+        String fileName = detectHistory.getFileName();
+        Long userId = detectHistory.getUserId();
         logger.info("开始处理图片审核任务，图片ID：{}，MinIO链接：{}", imageId, imageUrl);
 
         boolean isAck = false;
@@ -104,11 +118,24 @@ public class RabbitConsumerListener {
 
             detectHistoryMapper.updateStatusById(detectHistory);
             logger.info("图片入库成功，图片id{}", imageId);
+
+            // 推送消息到websocket
+            Msg msg = new Msg();
+            msg.setType("DETECT");
+            msg.setUserId(String.valueOf(detectHistory.getUserId()));
+            String classType = NORMAL_CLASSES.get(finalClass);
+            String content = String.format("图片AI检测完成：检测图片名称:%s，类型:%s，违规概率:%s%%", fileName, classType, finalProb);
+            msg.setContent(content);
+            msg.setIsRead(0);
+            msg.setCreateTime(LocalDateTime.now());
+            imageResultWebSocket.sendMessage(String.valueOf(userId), msg);
+
+            msgMapper.insert(msg);
+            logger.info("审核消息入库成功，消息id{}", msg.getId());
         } catch (Exception e) {
 
             detectHistory.setStatus(3);
             detectHistoryMapper.updateErrorStatus(detectHistory);
-
             // 异常转入人工审核
         }
 

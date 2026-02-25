@@ -50,6 +50,7 @@ public class AuthService {
         loginResponseDTO.setRefreshToken(refreshToken);
         loginResponseDTO.setExpireTime(7200L);
         loginRequestDTO.setUsername(user.getUsername());
+        loginResponseDTO.setUserId(userId);
         return loginResponseDTO;
     }
 
