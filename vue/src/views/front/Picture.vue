@@ -4,7 +4,7 @@
     <div class="sidebar">
       <div class="sidebar-header">
         <h3>AI图片检测</h3>
-        <p>YOLO合规校验工具</p>
+        <p>YOLO合规校验工具（批量版）</p>
       </div>
       <div class="sidebar-content">
         <!-- 美化后的上传区域 -->
@@ -16,7 +16,7 @@
             :class="{ 'drag-over': dragOver }"
         >
           <!-- 精美上传图标 -->
-          <div class="upload-icon-wrapper" v-if="!previewUrl">
+          <div class="upload-icon-wrapper" v-if="imageFiles.length === 0">
             <svg class="upload-icon" viewBox="0 0 24 24" width="60" height="60">
               <defs>
                 <linearGradient id="uploadGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -29,30 +29,68 @@
             </svg>
           </div>
 
-          <!-- 图片预览 -->
-          <div class="image-preview" v-if="previewUrl">
-            <img :src="previewUrl" alt="预览" class="preview-img" @click="viewOriginalImage"/>
-            <button class="close-preview" @click="clearPreview">×</button>
-            <div class="image-size-tip">{{ imageFile ? `${(imageFile.size / 1024).toFixed(1)}KB` : '' }}</div>
+          <!-- 批量图片预览 -->
+          <div class="batch-preview" v-if="imageFiles.length > 0">
+            <div class="preview-list">
+              <div class="preview-item" v-for="(file, index) in imageFiles" :key="index">
+                <div class="preview-img-wrapper">
+                  <img :src="file.previewUrl" alt="预览" class="preview-img" @click="viewOriginalImage(file.previewUrl)"/>
+                  <button class="close-preview" @click="removeFile(index)">×</button>
+                  <div class="image-size-tip">{{ `${(file.file.size / 1024).toFixed(1)}KB` }}</div>
+                  <!-- 单个文件检测状态 -->
+                  <div class="file-status" :class="file.detectStatus">
+                    <span v-if="file.detectStatus === 'submitting' || file.detectStatus === 'polling'">
+                      <i class="loading-icon">◯</i> {{ file.detectMsg }}
+                    </span>
+                    <span v-if="file.detectStatus === 'success'">
+                      {{ file.yoloResult.isPass ? '✅ 合规' : '⚠️ 违规' }}
+                    </span>
+                    <span v-if="file.detectStatus === 'error'">
+                      ❌ {{ file.detectMsg }}
+                    </span>
+                  </div>
+                </div>
+                <p class="file-name">{{ file.file.name }}</p>
+              </div>
+            </div>
+            <div class="batch-stats">
+              <span>已选择 {{ imageFiles.length }} 张图片</span>
+              <span v-if="completedCount > 0">已完成 {{ completedCount }}/{{ imageFiles.length }}</span>
+            </div>
           </div>
 
           <!-- 上传按钮容器 -->
           <div class="upload-btn-container">
+            <!-- 修复：文件输入框单独定位，避免按钮点击冒泡触发 -->
             <input
                 ref="fileInputRef"
                 type="file"
                 accept="image/jpg,image/jpeg,image/png,image/webp"
                 class="file-input"
                 @change="handleImageChange"
+                multiple
+            style="position: absolute; opacity: 0; width: 0; height: 0; z-index: -1;"
             />
-            <button class="upload-btn" @click="triggerFileInput" :disabled="isDetectingFlag || !isLogin">
+            <!-- 上传/添加图片按钮 -->
+            <button class="upload-btn" @click="triggerFileInput" :disabled="isDetectingFlag || !isLogin || imageFiles.length >= maxFileCount">
               <span class="btn-icon">📤</span>
-              <span class="btn-text">{{ previewUrl ? '重新上传图片' : '上传图片检测' }}</span>
+              <span class="btn-text">{{ imageFiles.length > 0 ? '添加更多图片' : '上传图片检测' }}</span>
+            </button>
+            <!-- 批量检测按钮 -->
+            <button class="batch-detect-btn" @click="handleBatchDetectClick"
+                    :disabled="!isLogin || imageFiles.length === 0 || isDetectingFlag || completedCount === imageFiles.length">
+              <span class="btn-icon">🚀</span>
+              <span class="btn-text">开始批量检测</span>
+            </button>
+            <!-- 清空按钮 -->
+            <button class="clear-btn" @click="clearAllFiles" :disabled="isDetectingFlag">
+              <span class="btn-icon">🗑️</span>
+              <span class="btn-text">清空</span>
             </button>
           </div>
 
-          <p class="tips">{{ dragOver ? '释放上传' : '支持拖拽/点击上传' }}</p>
-          <p class="format-tips">支持 JPG/PNG/WEBP 格式 | 最大 5MB</p>
+          <p class="tips">{{ dragOver ? '释放上传' : '支持拖拽/点击批量上传' }}</p>
+          <p class="format-tips">支持 JPG/PNG/WEBP 格式 | 单张最大 5MB | 最多上传20张</p>
           <p class="login-tips" v-if="!isLogin">请先登录后再使用检测功能</p>
         </div>
       </div>
@@ -74,73 +112,92 @@
         </div>
 
         <!-- 初始空状态 -->
-        <div class="empty-state initial-empty"
-             v-else-if="detectResult.detectStatus === 'idle' && !previewUrl">
+        <div class="empty-state initial-empty" v-else-if="imageFiles.length === 0">
           <div class="empty-illustration">
             <svg viewBox="0 0 24 24" width="120" height="120" fill="#f0f2f5">
               <path
                   d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
             </svg>
           </div>
-          <h3>上传图片开始YOLO检测</h3>
-          <p>AI智能检测图片合规性，快速识别违规内容</p>
+          <h3>批量上传图片开始YOLO检测</h3>
+          <p>AI智能检测图片合规性，快速识别违规内容，支持批量处理</p>
         </div>
 
-        <!-- 检测中/轮询中 -->
-        <div class="detecting-state" v-else-if="detectResult.detectStatus === 'submitting' || detectResult.detectStatus === 'polling'">
-          <div class="loading-spinner">
-            <div class="spinner"></div>
-          </div>
-          <p class="detecting-text">{{ detectResult.detectMsg }}</p>
-          <p class="polling-tip" v-if="detectResult.detectStatus === 'polling'">已等待{{ pollCount }}秒</p>
-        </div>
+        <!-- 批量检测汇总结果 -->
+        <div class="batch-result-state" v-else>
+          <div class="batch-summary">
+            <h3>批量检测进度</h3>
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: `${(completedCount / imageFiles.length) * 100}%` }"></div>
+            </div>
+            <p class="progress-text">{{ completedCount }}/{{ imageFiles.length }} 张图片已检测</p>
 
-        <!-- 错误 -->
-        <div class="error-state" v-else-if="detectResult.detectStatus === 'error'">
-          <svg class="error-icon" viewBox="0 0 24 24" width="80" height="80">
-            <path fill="#ef4444" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-          </svg>
-          <p class="error-text">{{ detectResult.detectMsg }}</p>
-          <button class="retry-btn" @click="triggerFileInput" :disabled="isDetectingFlag">重新上传</button>
-        </div>
-
-        <!-- YOLO检测结果（适配后端返回的Normal/Adult/Violent + 置信度） -->
-        <div class="result-state" v-else-if="detectResult.detectStatus === 'success'">
-          <div class="result-header">
-            <div class="result-icon">
-              {{ detectResult.yoloResult.isPass ? '✅' : '⚠️' }}
-            </div>
-            <h3>{{ detectResult.yoloResult.isPass ? '检测合规' : '检测到违规内容' }}</h3>
-          </div>
-
-          <div class="result-details">
-            <div class="result-item">
-              <span class="label">文件名称：</span>
-              <span class="value">{{ detectResult.yoloResult.filename }}</span>
-            </div>
-            <div class="result-item">
-              <span class="label">文件大小：</span>
-              <span class="value">{{ imageFile ? `${(imageFile.size / 1024).toFixed(1)}KB` : '' }}</span>
-            </div>
-            <div class="result-item">
-              <span class="label">检测时间：</span>
-              <span class="value">{{ detectResult.yoloResult.detectTime }}</span>
-            </div>
-            <div class="result-item">
-              <span class="label">检测结果：</span>
-              <span class="value" :class="!detectResult.yoloResult.isPass ? 'high' : 'safe'">
-                {{ detectResult.yoloResult.isPass ? '合规' : detectResult.yoloResult.violationType }}
-              </span>
-            </div>
-            <div class="result-item">
-              <span class="label">置信度：</span>
-              <span class="value">{{ (detectResult.yoloResult.confidence * 100).toFixed(2) }}%</span>
+            <!-- 统计信息 -->
+            <div class="stats-grid" v-if="completedCount > 0">
+              <div class="stat-item">
+                <span class="stat-label">合规</span>
+                <span class="stat-value safe">{{ passCount }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">违规</span>
+                <span class="stat-value high">{{ failCount }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">失败</span>
+                <span class="stat-value error">{{ errorCount }}</span>
+              </div>
             </div>
           </div>
 
-          <div class="result-actions">
-            <button class="btn-primary" @click="clearDetection">重新检测</button>
-            <button class="btn-secondary" @click="goToHistoryPage">查看检测记录</button>
+          <!-- 详细结果列表 -->
+          <div class="detailed-results">
+            <h4>检测结果详情</h4>
+            <div class="result-table">
+              <div class="table-header">
+                <div class="col-name">文件名</div>
+                <div class="col-status">检测状态</div>
+                <div class="col-result">检测结果</div>
+                <div class="col-confidence">置信度</div>
+              </div>
+              <div class="table-body">
+                <div class="table-row" v-for="(file, index) in imageFiles" :key="index">
+                  <div class="col-name">{{ file.file.name }}</div>
+                  <div class="col-status" :class="file.detectStatus">
+                    <span v-if="file.detectStatus === 'idle'">未开始</span>
+                    <span v-if="file.detectStatus === 'submitting'">提交中</span>
+                    <span v-if="file.detectStatus === 'polling'">检测中</span>
+                    <span v-if="file.detectStatus === 'success'" class="success">已完成</span>
+                    <span v-if="file.detectStatus === 'error'" class="error">失败</span>
+                  </div>
+                  <div class="col-result">
+                    <span v-if="file.detectStatus === 'success'" :class="file.yoloResult.isPass ? 'safe' : 'high'">
+                      {{ file.yoloResult.isPass ? '合规' : file.yoloResult.violationType }}
+                    </span>
+                    <span v-else>-</span>
+                  </div>
+                  <div class="col-confidence">
+                    <span v-if="file.detectStatus === 'success'">
+                      {{ (file.yoloResult.confidence * 100).toFixed(2) }}%
+                    </span>
+                    <span v-else>-</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 批量操作按钮 -->
+          <div class="batch-actions">
+            <button class="btn-primary" @click="handleBatchDetectClick"
+                    :disabled="isDetectingFlag || completedCount === imageFiles.length">
+              重新检测全部
+            </button>
+            <button class="btn-secondary" @click="clearAllFiles" :disabled="isDetectingFlag">
+              清空重新上传
+            </button>
+            <button class="btn-export" @click="exportResults" :disabled="completedCount === 0">
+              导出检测结果
+            </button>
           </div>
         </div>
       </div>
@@ -149,55 +206,64 @@
 </template>
 
 <script>
-import { ref, reactive, onUnmounted, onMounted, watch } from 'vue';
+import { ref, reactive, onUnmounted, onMounted, watch, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import request from '../../utils/request';
 
 export default {
-  name: "AIImageDetect",
+  name: "AIImageDetectBatch",
   setup() {
     const router = useRouter();
-    const route = useRoute(); // 使用useRoute获取响应式路由对象
+    const route = useRoute();
 
-    // 响应式变量
-    const imageFile = ref(null);
+    // 响应式变量 - 改为批量模式
+    const imageFiles = ref([]); // 批量文件列表：[{ file, previewUrl, detectStatus, detectMsg, taskId, yoloResult, pollTimer, pollCount }]
     const fileInputRef = ref(null);
     const statusContainerRef = ref(null);
     const dragOver = ref(false);
     const isLogin = ref(true); // 模拟已登录
     const isDetectingFlag = ref(false);
-    const previewUrl = ref('');
-    const pollTimer = ref(null); // 改为ref便于响应式追踪
-    const pollCount = ref(0); // 轮询计时
     const maxPollTimes = 60; // 最大轮询次数（60秒）
+    const maxFileCount = 20; // 最大上传文件数
 
-    // 违规类型映射（严格匹配后端返回的大小写：Normal/Adult/Violent）
+    // 违规类型映射
     const violationTypeMap = {
       Normal: '正常',
       Adult: '色情',
       Violent: '暴力'
     };
 
-    // 检测结果（适配后端返回的Normal/Adult/Violent + 置信度）
-    const detectResult = reactive({
-      detectStatus: 'idle', // idle / submitting / polling / error / success
-      detectMsg: '',
-      taskId: '',
-      yoloResult: {
-        filename: '',
-        detectTime: '',
-        isPass: true,       // 仅Normal为true，其他均为false
-        violationType: '',
-        confidence: 0       // 后端返回的置信度（0-1）
-      }
-    });
-
     // 配置项
     const maxImageSize = 5 * 1024 * 1024;
     const allowImageTypes = ['image/jpg', 'image/jpeg', 'image/png', 'image/webp'];
 
-    // 登录校验（模拟）
+    // 计算属性 - 批量统计
+    const completedCount = computed(() => {
+      return imageFiles.value.filter(file =>
+          file.detectStatus === 'success' || file.detectStatus === 'error'
+      ).length;
+    });
+
+    const passCount = computed(() => {
+      return imageFiles.value.filter(file =>
+          file.detectStatus === 'success' && file.yoloResult.isPass
+      ).length;
+    });
+
+    const failCount = computed(() => {
+      return imageFiles.value.filter(file =>
+          file.detectStatus === 'success' && !file.yoloResult.isPass
+      ).length;
+    });
+
+    const errorCount = computed(() => {
+      return imageFiles.value.filter(file =>
+          file.detectStatus === 'error'
+      ).length;
+    });
+
+    // 登录校验
     const checkLoginStatus = () => {
       isLogin.value = true; // 实际项目中替换为真实登录校验
     };
@@ -206,7 +272,7 @@ export default {
     const goToLogin = () => {
       router.push({
         path: '/login',
-        query: { redirect: route.fullPath } // 使用useRoute的响应式对象
+        query: { redirect: route.fullPath }
       });
     };
 
@@ -215,82 +281,91 @@ export default {
       router.push('/front/history');
     };
 
-    // 更新检测状态
+    // 更新批量检测状态
     const updateDetectingStatus = () => {
-      isDetectingFlag.value = ['submitting', 'polling'].includes(detectResult.detectStatus);
+      isDetectingFlag.value = imageFiles.value.some(file =>
+          ['submitting', 'polling'].includes(file.detectStatus)
+      );
     };
 
-    // 监听检测状态变化，自动更新检测中标识
-    watch([() => detectResult.detectStatus], () => {
+    // 监听文件列表变化，更新检测状态
+    watch([() => imageFiles.value], () => {
       updateDetectingStatus();
-    }, { immediate: true });
+    }, { deep: true, immediate: true });
 
     // 生成图片预览
     const createPreview = (file) => {
-      // 安全释放旧的URL
-      if (previewUrl.value) {
+      return URL.createObjectURL(file);
+    };
+
+    // 释放预览URL
+    const revokePreviewUrl = (previewUrl) => {
+      if (previewUrl) {
         try {
-          URL.revokeObjectURL(previewUrl.value);
+          URL.revokeObjectURL(previewUrl);
         } catch (e) {
           console.warn('释放预览URL失败:', e);
         }
       }
-      previewUrl.value = URL.createObjectURL(file);
     };
 
     // 查看原图
-    const viewOriginalImage = () => {
-      if (previewUrl.value) {
-        window.open(previewUrl.value, '_blank');
+    const viewOriginalImage = (previewUrl) => {
+      if (previewUrl) {
+        window.open(previewUrl, '_blank');
       }
     };
 
-    // 清空预览
-    const clearPreview = () => {
-      // 清理预览资源
-      if (previewUrl.value) {
-        try {
-          URL.revokeObjectURL(previewUrl.value);
-        } catch (e) {
-          console.warn('释放预览URL失败:', e);
+    // 移除单个文件
+    const removeFile = (index) => {
+      if (isDetectingFlag.value) {
+        ElMessage.warning('检测中无法移除文件');
+        return;
+      }
+
+      // 清理资源
+      const fileItem = imageFiles.value[index];
+      revokePreviewUrl(fileItem.previewUrl);
+      if (fileItem.pollTimer) {
+        clearInterval(fileItem.pollTimer);
+      }
+
+      // 移除文件
+      imageFiles.value.splice(index, 1);
+    };
+
+    // 清空所有文件
+    const clearAllFiles = () => {
+      if (isDetectingFlag.value) {
+        ElMessage.warning('检测中无法清空文件');
+        return;
+      }
+
+      // 清理所有资源
+      imageFiles.value.forEach(fileItem => {
+        revokePreviewUrl(fileItem.previewUrl);
+        if (fileItem.pollTimer) {
+          clearInterval(fileItem.pollTimer);
         }
-        previewUrl.value = '';
-      }
+      });
 
-      // 清理文件引用
-      imageFile.value = null;
-
-      // 重置检测状态
-      detectResult.detectStatus = 'idle';
-      detectResult.detectMsg = '';
-      detectResult.taskId = '';
-      pollCount.value = 0;
-
-      // 清空轮询定时器
-      if (pollTimer.value) {
-        clearInterval(pollTimer.value);
-        pollTimer.value = null;
-      }
+      // 清空列表
+      imageFiles.value = [];
     };
 
-    // 清空本次检测
-    const clearDetection = () => {
-      clearPreview();
-    };
-
-    // 触发文件选择
+    // 触发文件选择（仅用于上传/添加图片）
     const triggerFileInput = () => {
       if (!isLogin.value) {
         ElMessage.warning('请先登录');
         goToLogin();
         return;
       }
-      if (fileInputRef.value && !isDetectingFlag.value) {
+      if (fileInputRef.value && !isDetectingFlag.value && imageFiles.value.length < maxFileCount) {
         fileInputRef.value.click();
       }
     };
 
-    // 验证文件是否为有效图片
+    // 验证单个文件
     const validateImageFile = (file) => {
       if (!file) return { valid: false, message: '未选择文件' };
 
@@ -298,7 +373,7 @@ export default {
       if (!allowImageTypes.includes(file.type)) {
         return {
           valid: false,
-          message: '仅支持 JPG/PNG/WEBP 格式！'
+          message: `文件 ${file.name}：仅支持 JPG/PNG/WEBP 格式！`
         };
       }
 
@@ -306,47 +381,66 @@ export default {
       if (file.size > maxImageSize) {
         return {
           valid: false,
-          message: `图片大小超过 5MB 限制，当前：${(file.size / 1024 / 1024).toFixed(2)}MB`
+          message: `文件 ${file.name}：大小超过 5MB 限制，当前：${(file.size / 1024 / 1024).toFixed(2)}MB`
         };
       }
 
       return { valid: true };
     };
 
-    // 处理文件选择
-    const handleImageFile = (file) => {
-      if (!isLogin.value) {
-        ElMessage.warning('请先登录');
-        goToLogin();
+    // 添加文件到列表
+    const addFilesToList = (files) => {
+      const newFiles = Array.from(files);
+
+      // 数量校验
+      if (imageFiles.value.length + newFiles.length > maxFileCount) {
+        ElMessage.error(`最多只能上传${maxFileCount}张图片`);
         return;
       }
 
-      // 验证文件有效性
-      const validation = validateImageFile(file);
-      if (!validation.valid) {
-        detectResult.detectStatus = 'error';
-        detectResult.detectMsg = validation.message;
-        return;
-      }
+      // 逐个验证并添加
+      newFiles.forEach(file => {
+        const validation = validateImageFile(file);
+        if (!validation.valid) {
+          ElMessage.error(validation.message);
+          return;
+        }
 
-      // 重置状态
-      detectResult.detectStatus = 'idle';
-      detectResult.detectMsg = '';
-      detectResult.taskId = '';
-      pollCount.value = 0;
+        // 检查是否已存在相同文件
+        const isDuplicate = imageFiles.value.some(item =>
+            item.file.name === file.name && item.file.size === file.size
+        );
+        if (isDuplicate) {
+          ElMessage.warning(`文件 ${file.name} 已存在`);
+          return;
+        }
 
-      // 生成预览
-      createPreview(file);
-      imageFile.value = file;
-
-      // 开始检测
-      handleImageAIDetect();
+        // 添加到列表
+        imageFiles.value.push({
+          file,
+          previewUrl: createPreview(file),
+          detectStatus: 'idle', // idle / submitting / polling / error / success
+          detectMsg: '',
+          taskId: '',
+          pollTimer: null,
+          pollCount: 0,
+          yoloResult: {
+            filename: file.name,
+            detectTime: '',
+            isPass: true,
+            violationType: '',
+            confidence: 0
+          }
+        });
+      });
     };
 
-    // 点击上传
+    // 处理文件选择（仅上传图片，不触发检测）
     const handleImageChange = (e) => {
-      const file = e.target.files?.[0];
-      if (file) handleImageFile(file);
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        addFilesToList(files);
+      }
 
       // 重置input值
       setTimeout(() => {
@@ -381,50 +475,44 @@ export default {
 
       if (isDetectingFlag.value) return;
 
-      const file = e.dataTransfer.files?.[0];
-      if (file) {
-        // 先验证拖拽文件类型
-        const validation = validateImageFile(file);
-        if (!validation.valid) {
-          ElMessage.error(validation.message);
-          return;
-        }
-        handleImageFile(file);
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        addFilesToList(files);
       }
     };
 
-    // 停止轮询并清理
-    const stopPolling = (errorMsg = '') => {
-      if (pollTimer.value) {
-        clearInterval(pollTimer.value);
-        pollTimer.value = null;
+    // 停止单个文件的轮询
+    const stopFilePolling = (fileItem, errorMsg = '') => {
+      if (fileItem.pollTimer) {
+        clearInterval(fileItem.pollTimer);
+        fileItem.pollTimer = null;
       }
-      pollCount.value = 0;
+      fileItem.pollCount = 0;
 
       if (errorMsg) {
-        detectResult.detectStatus = 'error';
-        detectResult.detectMsg = errorMsg;
+        fileItem.detectStatus = 'error';
+        fileItem.detectMsg = errorMsg;
         updateDetectingStatus();
       }
     };
 
-    // 轮询获取YOLO检测结果（核心：严格按Normal判定合规）
-    const startPollResult = () => {
+    // 轮询获取单个文件的检测结果
+    const startFilePollResult = (fileItem, index) => {
       // 防止重复轮询
-      stopPolling();
+      stopFilePolling(fileItem);
 
-      pollCount.value = 0;
-      detectResult.detectStatus = 'polling';
-      detectResult.detectMsg = '提交成功，等待YOLO检测...';
+      fileItem.pollCount = 0;
+      fileItem.detectStatus = 'polling';
+      fileItem.detectMsg = '等待YOLO检测...';
 
       // 每1秒轮询一次
-      pollTimer.value = setInterval(async () => {
-        pollCount.value++;
+      fileItem.pollTimer = setInterval(async () => {
+        fileItem.pollCount++;
 
         // 轮询超时处理
-        if (pollCount.value >= maxPollTimes) {
-          stopPolling('检测超时，请重新上传图片');
-          ElMessage.error('检测超时');
+        if (fileItem.pollCount >= maxPollTimes) {
+          stopFilePolling(fileItem, '检测超时');
+          ElMessage.error(`文件 ${fileItem.file.name} 检测超时`);
           return;
         }
 
@@ -432,11 +520,10 @@ export default {
           const res = await request({
             url: '/review/picture/result',
             method: 'get',
-            params: { taskId: detectResult.taskId },
-            timeout: 5000 // 轮询接口超时时间
+            params: { taskId: fileItem.taskId },
+            timeout: 5000
           });
 
-          // 空值校验
           if (!res) {
             throw new Error('获取检测结果为空');
           }
@@ -446,7 +533,6 @@ export default {
           }
 
           const data = res.data;
-          // 数据格式校验
           if (!data || typeof data.status !== 'number') {
             throw new Error('检测结果格式异常');
           }
@@ -454,45 +540,40 @@ export default {
           // 任务状态：0=排队中 1=检测中 2=完成 3=失败
           switch (data.status) {
             case 0:
-              detectResult.detectMsg = '排队等待YOLO检测...';
+              fileItem.detectMsg = '排队等待...';
               break;
             case 1:
-              detectResult.detectMsg = 'YOLO正在检测中...';
+              fileItem.detectMsg = '检测中...';
               break;
             case 2:
-              // 检测完成 - 核心逻辑：仅Normal为合规
-              stopPolling();
-              detectResult.detectStatus = 'success';
+              // 检测完成
+              stopFilePolling(fileItem);
+              fileItem.detectStatus = 'success';
 
-              // 1. 获取后端原始违规类型（严格匹配大小写）
               const rawViolationType = data.violationType || 'Normal';
-              // 2. 映射为中文展示（增加默认值）
               const showViolationType = violationTypeMap[rawViolationType] || rawViolationType;
-              // 3. 判定是否合规（仅Normal为true）
               const isPass = rawViolationType === 'Normal';
 
-              // 4. 赋值最终结果（增加空值校验）
-              detectResult.yoloResult = {
-                filename: imageFile.value?.name || '未知文件',
+              fileItem.yoloResult = {
+                filename: fileItem.file.name,
                 detectTime: new Date().toLocaleString(),
-                isPass: isPass,          // 核心：仅Normal为true
+                isPass: isPass,
                 violationType: showViolationType,
-                confidence: typeof data.confidence === 'number' ? data.confidence : 0 // 读取后端置信度
+                confidence: typeof data.confidence === 'number' ? data.confidence : 0
               };
-              ElMessage.success('YOLO检测完成');
               break;
             case 3:
               // 检测失败
-              stopPolling(data.msg || 'YOLO检测失败');
+              stopFilePolling(fileItem, data.msg || '检测失败');
               break;
             default:
               throw new Error(`未知的任务状态：${data.status}`);
           }
         } catch (err) {
-          console.error('轮询失败：', err);
+          console.error(`轮询失败 [${fileItem.file.name}]：`, err);
           // 轮询失败超过3次则停止
-          if (pollCount.value % 3 === 0) {
-            ElMessage.warning(`轮询失败${pollCount.value % 3 + 1}次：${err.message}`);
+          if (fileItem.pollCount % 3 === 0) {
+            ElMessage.warning(`文件 ${fileItem.file.name} 轮询失败：${err.message}`);
           }
         }
       }, 1000);
@@ -500,19 +581,19 @@ export default {
       updateDetectingStatus();
     };
 
-    // 提交图片到后端（修复taskId取值错误）
-    const handleImageAIDetect = async () => {
-      if (!imageFile.value || isDetectingFlag.value) return;
+    // 提交单个文件检测
+    const submitFileDetect = async (fileItem, index) => {
+      if (!fileItem || fileItem.detectStatus !== 'idle') return;
 
       try {
-        detectResult.detectStatus = 'submitting';
-        detectResult.detectMsg = '图片上传中...';
+        fileItem.detectStatus = 'submitting';
+        fileItem.detectMsg = '上传中...';
         updateDetectingStatus();
 
         const formData = new FormData();
-        formData.append('file', imageFile.value);
+        formData.append('file', fileItem.file);
 
-        // 调用上传接口
+        // 调用上传接口（仅提交检测，不再触发文件选择）
         const res = await request({
           url: '/review/picture',
           method: 'post',
@@ -521,36 +602,115 @@ export default {
           timeout: 30000
         });
 
-        // 空值和格式校验
         if (!res) {
           throw new Error('上传响应为空');
         }
 
         if (res?.code === 200) {
-          // 校验taskId有效性
           if (!res.data || typeof res.data !== 'string') {
             throw new Error('获取的任务ID无效');
           }
 
-          detectResult.taskId = res.data;
+          fileItem.taskId = res.data;
           // 启动轮询
-          startPollResult();
+          startFilePollResult(fileItem, index);
         } else {
           throw new Error(res?.msg || '图片提交失败');
         }
       } catch (err) {
-        console.error('图片检测提交失败：', err);
-        detectResult.detectStatus = 'error';
+        console.error(`提交失败 [${fileItem.file.name}]：`, err);
+        fileItem.detectStatus = 'error';
 
-        // 区分超时错误
         if (err.message.includes('timeout')) {
-          detectResult.detectMsg = '上传超时，请检查网络后重试';
+          fileItem.detectMsg = '上传超时';
         } else {
-          detectResult.detectMsg = err.message || '图片提交失败，请检查网络！';
+          fileItem.detectMsg = err.message || '提交失败';
         }
       } finally {
         updateDetectingStatus();
       }
+    };
+
+    // 批量检测核心逻辑（独立方法，避免和上传混淆）
+    const startBatchDetect = async () => {
+      if (!isLogin.value) {
+        ElMessage.warning('请先登录');
+        goToLogin();
+        return;
+      }
+
+      if (imageFiles.value.length === 0) {
+        ElMessage.warning('请先上传图片');
+        return;
+      }
+
+      // 重置未完成的文件状态
+      imageFiles.value.forEach(fileItem => {
+        if (fileItem.detectStatus !== 'success' && fileItem.detectStatus !== 'error') {
+          fileItem.detectStatus = 'idle';
+          fileItem.detectMsg = '';
+          fileItem.taskId = '';
+          if (fileItem.pollTimer) {
+            clearInterval(fileItem.pollTimer);
+            fileItem.pollTimer = null;
+          }
+          fileItem.pollCount = 0;
+        }
+      });
+
+      ElMessage.info(`开始批量检测 ${imageFiles.value.length} 张图片`);
+
+      // 串行提交检测（避免同时提交过多请求）
+      for (let i = 0; i < imageFiles.value.length; i++) {
+        const fileItem = imageFiles.value[i];
+        if (fileItem.detectStatus === 'idle') {
+          await submitFileDetect(fileItem, i);
+          // 间隔500ms提交下一个，避免后端压力过大
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    };
+
+    // 批量检测按钮点击处理（独立方法，防止事件冒泡）
+    const handleBatchDetectClick = async (e) => {
+      // 阻止事件冒泡，防止触发文件选择
+      e.stopPropagation();
+      await startBatchDetect();
+    };
+
+    // 导出检测结果
+    const exportResults = () => {
+      if (completedCount.value === 0) {
+        ElMessage.warning('暂无检测结果可导出');
+        return;
+      }
+
+      // 构建CSV内容
+      let csvContent = "文件名,文件大小(KB),检测时间,检测结果,违规类型,置信度(%)\n";
+
+      imageFiles.value.forEach(fileItem => {
+        if (fileItem.detectStatus === 'success') {
+          const sizeKB = (fileItem.file.size / 1024).toFixed(1);
+          const confidence = (fileItem.yoloResult.confidence * 100).toFixed(2);
+          const result = fileItem.yoloResult.isPass ? '合规' : '违规';
+
+          csvContent += `${fileItem.file.name},${sizeKB},${fileItem.yoloResult.detectTime},${result},${fileItem.yoloResult.violationType},${confidence}\n`;
+        }
+      });
+
+      // 创建并下载CSV文件
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `AI图片检测结果_${new Date().getTime()}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      ElMessage.success('检测结果已导出');
     };
 
     // 生命周期
@@ -560,42 +720,39 @@ export default {
     });
 
     onUnmounted(() => {
-      // 清理资源
-      if (previewUrl.value) {
-        try {
-          URL.revokeObjectURL(previewUrl.value);
-        } catch (e) {
-          console.warn('组件卸载时释放预览URL失败:', e);
+      // 清理所有资源
+      imageFiles.value.forEach(fileItem => {
+        revokePreviewUrl(fileItem.previewUrl);
+        if (fileItem.pollTimer) {
+          clearInterval(fileItem.pollTimer);
         }
-      }
-
-      // 停止轮询
-      stopPolling();
-
-      // 清理引用
-      imageFile.value = null;
+      });
     });
 
     return {
       fileInputRef,
       statusContainerRef,
       dragOver,
-      detectResult,
+      imageFiles,
       isDetectingFlag,
       isLogin,
-      previewUrl,
-      imageFile,
-      pollCount,
+      maxFileCount,
+      completedCount,
+      passCount,
+      failCount,
+      errorCount,
       triggerFileInput,
       handleImageChange,
       handleDragOver,
       handleDragLeave,
       handleDrop,
-      clearPreview,
-      clearDetection,
+      removeFile,
+      clearAllFiles,
       goToLogin,
       goToHistoryPage,
-      viewOriginalImage
+      viewOriginalImage,
+      handleBatchDetectClick, // 暴露独立的批量检测点击方法
+      exportResults
     };
   }
 };
@@ -614,21 +771,23 @@ export default {
   height: 100vh;
   background-color: #f8fafc;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
 }
 
 /* 侧边栏样式 */
 .sidebar {
-  width: 350px;
+  width: 400px;
   background: #fff;
   border-right: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   padding: 32px 24px;
+  overflow-y: auto;
 }
 
 .sidebar-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
 }
 
 .sidebar-header h3 {
@@ -647,14 +806,13 @@ export default {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
 }
 
 /* 上传区域 */
 .upload-area {
   border: 2px dashed #e2e8f0;
   border-radius: 20px;
-  padding: 48px 24px;
+  padding: 24px;
   text-align: center;
   transition: all 0.3s;
   background: #fff;
@@ -674,14 +832,35 @@ export default {
   margin-bottom: 28px;
 }
 
-.image-preview {
+/* 批量预览样式 */
+.batch-preview {
+  margin-bottom: 24px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.preview-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.preview-item {
+  width: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.preview-img-wrapper {
   position: relative;
-  margin: 0 auto 24px;
-  max-width: 240px;
-  max-height: 180px;
-  border-radius: 12px;
+  width: 90px;
+  height: 90px;
+  border-radius: 8px;
   overflow: hidden;
-  cursor: pointer;
+  margin-bottom: 4px;
 }
 
 .preview-img {
@@ -693,59 +872,110 @@ export default {
 
 .close-preview {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.6);
   color: #fff;
   border: none;
-  font-size: 16px;
+  font-size: 12px;
   cursor: pointer;
   z-index: 10;
 }
 
 .image-size-tip {
   position: absolute;
-  bottom: 8px;
-  left: 8px;
-  font-size: 12px;
+  bottom: 2px;
+  left: 2px;
+  font-size: 10px;
   color: #fff;
   background: rgba(0, 0, 0, 0.4);
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 4px;
+  border-radius: 2px;
 }
 
-.upload-btn-container {
-  position: relative;
-  display: inline-block;
-  margin-bottom: 16px;
-}
-
-.file-input {
+.file-status {
   position: absolute;
-  inset: 0;
-  opacity: 0;
+  bottom: 20px;
+  left: 0;
+  width: 100%;
+  font-size: 10px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 2px;
+  text-align: center;
+}
+
+.file-name {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.batch-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #64748b;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+/* 上传按钮容器 */
+.upload-btn-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+/* 隐藏的文件输入框，避免布局干扰 */
+.file-input {
+  position: absolute !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  z-index: -1 !important;
+}
+
+.upload-btn, .batch-detect-btn, .clear-btn {
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 14px;
   cursor: pointer;
-  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
 }
 
 .upload-btn {
   background: linear-gradient(135deg, #4f46e5, #7c3aed);
   color: #fff;
-  border: none;
-  padding: 14px 28px;
-  border-radius: 12px;
-  font-size: 15px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
 }
 
-.upload-btn:disabled {
+.batch-detect-btn {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+}
+
+.clear-btn {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.upload-btn:disabled, .batch-detect-btn:disabled, .clear-btn:disabled {
   background: #cbd5e1;
+  color: #94a3b8;
   cursor: not-allowed;
 }
 
@@ -773,11 +1003,12 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 40px;
+  overflow-y: auto;
 }
 
 .status-container {
   width: 100%;
-  max-width: 600px;
+  max-width: 800px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -823,126 +1054,148 @@ export default {
   font-size: 15px;
 }
 
-/* 检测中状态 */
-.detecting-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-.loading-spinner {
-  width: 70px;
-  height: 70px;
-}
-
-.spinner {
-  width: 100%;
-  height: 100%;
-  border: 4px solid #f0f0f0;
-  border-top-color: #4f46e5;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.detecting-text {
-  font-size: 18px;
-  color: #475569;
-}
-
-.polling-tip {
-  font-size: 14px;
-  color: #94a3b8;
-}
-
-/* 错误状态 */
-.error-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  text-align: center;
-}
-
-.error-text {
-  font-size: 16px;
-  color: #dc2626;
-}
-
-.retry-btn {
-  background: #4f46e5;
-  color: #fff;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-}
-
-/* 检测结果面板 */
-.result-state {
+/* 批量结果样式 */
+.batch-result-state {
   background: #fff;
   border-radius: 20px;
-  padding: 40px 32px;
+  padding: 40px;
   width: 100%;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  text-align: center;
   animation: fadeIn 0.3s;
 }
 
-.result-header {
-  margin-bottom: 28px;
+.batch-summary {
+  text-align: center;
+  margin-bottom: 32px;
 }
 
-.result-icon {
-  font-size: 60px;
-  margin-bottom: 12px;
-}
-
-.result-header h3 {
+.batch-summary h3 {
   font-size: 24px;
   color: #1e293b;
+  margin-bottom: 16px;
 }
 
-.result-details {
-  text-align: left;
-  margin-bottom: 32px;
-  padding: 20px 0;
-  border-top: 1px solid #f1f5f9;
-  border-bottom: 1px solid #f1f5f9;
+.progress-bar {
+  height: 12px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
 }
 
-.result-item {
-  display: flex;
-  margin-bottom: 14px;
-  font-size: 15px;
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  transition: width 0.3s ease;
 }
 
-.result-item:last-child {
-  margin-bottom: 0;
-}
-
-.label {
-  width: 100px;
+.progress-text {
+  font-size: 14px;
   color: #64748b;
-  font-weight: 500;
 }
 
-.value {
-  color: #1e293b;
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 24px;
 }
 
-.value.safe {
+.stat-item {
+  background: #f8fafc;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.stat-value.safe {
   color: #059669;
 }
 
-.value.high {
+.stat-value.high {
   color: #dc2626;
-  font-weight: 500;
 }
 
-.result-actions {
+.stat-value.error {
+  color: #f59e0b;
+}
+
+.detailed-results {
+  margin-bottom: 32px;
+}
+
+.detailed-results h4 {
+  font-size: 18px;
+  color: #1e293b;
+  margin-bottom: 16px;
+}
+
+.result-table {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  background: #f8fafc;
+  padding: 12px 16px;
+  font-weight: 600;
+  color: #334155;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table-body {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 14px;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.col-status .success {
+  color: #059669;
+}
+
+.col-status .error {
+  color: #dc2626;
+}
+
+.col-result .safe {
+  color: #059669;
+}
+
+.col-result .high {
+  color: #dc2626;
+}
+
+.batch-actions {
   display: flex;
   gap: 16px;
   justify-content: center;
+  margin-top: 24px;
 }
 
 .btn-primary {
@@ -963,6 +1216,21 @@ export default {
   border-radius: 10px;
   font-size: 15px;
   cursor: pointer;
+}
+
+.btn-export {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.btn-primary:disabled, .btn-secondary:disabled, .btn-export:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
 }
 
 /* 动画 */
@@ -987,6 +1255,7 @@ export default {
 @media (max-width: 768px) {
   .sidebar-layout {
     flex-direction: column;
+    height: auto;
   }
 
   .sidebar {
@@ -994,6 +1263,28 @@ export default {
     height: auto;
     border-right: none;
     border-bottom: 1px solid #e2e8f0;
+    max-height: 50vh;
+  }
+
+  .main-content {
+    padding: 20px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-header, .table-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .table-header .col-confidence, .table-row .col-confidence,
+  .table-header .col-status, .table-row .col-status {
+    display: none;
+  }
+
+  .batch-actions {
+    flex-direction: column;
   }
 }
 </style>
