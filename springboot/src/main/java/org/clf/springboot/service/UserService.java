@@ -2,9 +2,11 @@ package org.clf.springboot.service;
 
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import jakarta.annotation.Resource;
 import org.clf.springboot.common.enums.ResultCodeEnum;
 import org.clf.springboot.dto.RegisterDTO;
+import org.clf.springboot.dto.UserInfoUpdateRequest;
 import org.clf.springboot.entity.Account;
 import org.clf.springboot.exception.CustomException;
 import org.clf.springboot.entity.User;
@@ -104,6 +106,10 @@ public class UserService {
         User user = userMapper.selectById(id);
         user.setAvatar(avatarUrl);
         userMapper.updateById(user);
+    }
+
+    public void updateUserInfo(UserInfoUpdateRequest user) {
+        userMapper.updateUserInfo(user);
     }
 }
 

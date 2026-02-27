@@ -6,13 +6,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import org.clf.springboot.common.Result;
 import org.clf.springboot.common.enums.ErrorEnum;
-import org.clf.springboot.dto.DetectHistoryResponseDTO;
-import org.clf.springboot.dto.HistoryRequestDTO;
-import org.clf.springboot.dto.MsgRequestDTO;
-import org.clf.springboot.dto.StaticsResponseDTO;
+import org.clf.springboot.dto.*;
+import org.clf.springboot.entity.ApiKey;
 import org.clf.springboot.entity.DetectHistory;
 import org.clf.springboot.entity.Msg;
 import org.clf.springboot.entity.User;
+import org.clf.springboot.service.ApiKeyService;
 import org.clf.springboot.service.HistoryService;
 import org.clf.springboot.service.WebService;
 import org.clf.springboot.utils.UserContextHolder;
@@ -38,12 +37,16 @@ public class WebController {
     @Resource
     private HistoryService historyService;
 
+    @Resource
+    private ApiKeyService apiKeyService;
+
     /**
      * 获取历史审核的图片
+     *
      * @return
      */
     @GetMapping("/history/review/picture")
-    public Result getHistoryPicture(HistoryRequestDTO queryDTO)    {
+    public Result getHistoryPicture(HistoryRequestDTO queryDTO) {
         try {
             // 1. 校验页码和页大小
             if (queryDTO.getPageNum() < 1) {
@@ -53,7 +56,7 @@ public class WebController {
                 queryDTO.setPageSize(10);
             }
             // 2. 调用Service查询
-             IPage<DetectHistory> pageResult = historyService.getHistoryByUserId(queryDTO);
+            IPage<DetectHistory> pageResult = historyService.getHistoryByUserId(queryDTO);
 
             Page<DetectHistoryResponseDTO> resultPage = new Page<>();
 
@@ -149,5 +152,79 @@ public class WebController {
         }
         return Result.success(user.getUsername());
     }
-}
 
+    @PostMapping("/user/api-key/generate")
+    public Result generateApiKey(@RequestBody ApiKeyGenerateRequest request) {
+        try {
+            // 1. 调用服务生成Key
+            ApiKey apiKey = apiKeyService.generateApiKey(
+                    request.getUserId(),
+                    request.getKeyName(),
+                    request.getExpireDays()
+            );
+
+            // 2. 构建响应
+            ApiKeyGenerateResponse.DataDTO dataDTO = new ApiKeyGenerateResponse.DataDTO();
+            dataDTO.setId(apiKey.getId());
+            dataDTO.setUserId(apiKey.getUserId());
+            dataDTO.setAccessKey(apiKey.getAccessKey()); // 仅生成时返回完整Key
+            dataDTO.setKeyName(apiKey.getKeyName());
+            dataDTO.setStatus(apiKey.getStatus().name());
+            dataDTO.setExpireTime(apiKey.getExpireTime());
+            dataDTO.setCreateTime(apiKey.getCreateTime());
+            dataDTO.setSecretKey(apiKey.getSecretKey());
+            dataDTO.setTips("请妥善保管你的API Key，丢失后无法找回，可禁用并重新生成");
+            return Result.success(dataDTO);
+        } catch (Exception e) {
+            logger.error("API Key生成失败", e);
+            return Result.error("生成失败：" + e.getMessage());
+        }
+    }
+
+    @GetMapping("/user/api-key/list")
+    public Result getApiKeyList(Long userId) {
+        try {
+            if (validateUserId(String.valueOf(userId))) {
+                return Result.error(ErrorEnum.NOT_LOGIN.msg);
+            }
+            List<ApiKey> apiKeys = apiKeyService.getApiKeyList(userId);
+            return Result.success(apiKeys);
+        } catch (Exception e) {
+            logger.error("获取API Key列表失败", e);
+            return Result.error("获取失败：" + e.getMessage());
+        }
+    }
+
+    @PostMapping("/user/api-key/toggle/{keyId}")
+    public Result toggleApiKeyStatus(@PathVariable("keyId") Long keyId) {
+        try {
+            apiKeyService.toggleApiKeyStatus(keyId);
+            return Result.success();
+        } catch (Exception e) {
+            logger.error("切换API Key状态失败", e);
+            return Result.error("切换失败：" + e.getMessage());
+        }
+    }
+
+    @PostMapping("/user/api-key/reset/{keyId}")
+    public Result resetApiKey(@PathVariable("keyId") Long keyId, @RequestBody String userId) {
+        try {
+            apiKeyService.resetApiKey(keyId, userId);
+            return Result.success();
+        } catch (Exception e) {
+            logger.error("重置API Key失败", e);
+            return Result.error("重置失败：" + e.getMessage());
+        }
+    }
+
+    @PostMapping("/user/api-key/delete/{keyId}")
+    public Result deleteApiKey(@PathVariable("keyId") Long keyId) {
+        try {
+            apiKeyService.deleteApiKey(keyId);
+            return Result.success();
+        } catch (Exception e) {
+            logger.error("删除API Key失败", e);
+            return Result.error("删除失败：" + e.getMessage());
+        }
+    }
+}

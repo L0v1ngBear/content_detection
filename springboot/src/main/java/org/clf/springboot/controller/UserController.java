@@ -8,6 +8,8 @@ import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.clf.springboot.common.Result;
 import org.clf.springboot.common.enums.ResultCodeEnum;
+import org.clf.springboot.dto.UserInfoResponse;
+import org.clf.springboot.dto.UserInfoUpdateRequest;
 import org.clf.springboot.entity.Account;
 import org.clf.springboot.entity.User;
 import org.clf.springboot.exception.CustomException;
@@ -59,9 +61,10 @@ public class UserController {
         if (UserContextHolder.getUser() == null) {
             throw new CustomException(ResultCodeEnum.NO_PERMISSION);
         }
-        User resUser = new User();
+        UserInfoResponse resUser = new UserInfoResponse();
         User user = UserContextHolder.getUser();
-        resUser.setUsername(user.getUsername());
+        resUser.setId(user.getId());
+        resUser.setName(user.getUsername());
         resUser.setPhone(user.getPhone());
         resUser.setEmail(user.getEmail());
         resUser.setAvatar(user.getAvatar());
@@ -115,6 +118,17 @@ public class UserController {
         } catch (Exception e) {
             throw new RuntimeException("更新用户头像信息失败", e);
         }
+    }
+
+    @Operation(summary = "更新用户信息")
+    @PostMapping("/user/update")
+    public Result userUpdate(@RequestBody UserInfoUpdateRequest user) {
+        Long threadUserId = UserContextHolder.getUserId();
+        if (!threadUserId.equals(user.getId())) {
+            throw new CustomException(ResultCodeEnum.NO_PERMISSION);
+        }
+        userService.updateUserInfo(user);
+        return Result.success();
     }
 }
 

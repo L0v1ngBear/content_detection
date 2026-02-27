@@ -2,11 +2,15 @@ package org.clf.springboot.entity;
 
 import lombok.Data;
 
+import javax.persistence.Entity;
+import javax.persistence.Id;
 import java.util.Date;
 
 @Data
+@Entity
 public class DetectHistory {
 
+    @Id
     private Long id;
 
     private Long userId;

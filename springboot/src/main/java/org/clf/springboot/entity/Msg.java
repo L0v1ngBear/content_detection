@@ -4,17 +4,22 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
+
+import javax.persistence.Entity;
+import javax.persistence.Id;
 import java.time.LocalDateTime;
 
 /**
  * 消息实体类（对应msg表）
  */
 @Data // Lombok：自动生成get/set/toString/equals等方法
+@Entity
 @TableName("msg") // MyBatis-Plus：指定对应数据库表名
 public class Msg {
     /**
      * 消息唯一ID
      */
+    @Id
     @TableId(type = IdType.AUTO) // 主键自增
     private Long id;
 
