@@ -23,8 +23,6 @@
         >
           密码修改
         </button>
-        <!-- 移除存储配置选项卡 -->
-        <!-- 新增API访问密钥选项卡 -->
         <button
             class="tab-nav-item"
             :class="{ active: activeTab === 'apiKey' }"
@@ -34,7 +32,7 @@
         </button>
       </div>
 
-      <!-- 个人信息面板 - 已移除用户ID -->
+      <!-- 个人信息面板 -->
       <div class="tab-panel" v-if="activeTab === 'userInfo'">
         <div class="setting-form-box">
           <div class="form-item">
@@ -150,6 +148,7 @@
                 v-model="apiKeyForm.keyName"
                 class="form-input"
                 placeholder="请输入密钥名称（如：业务系统对接）"
+                maxlength="100"
             />
           </div>
 
@@ -228,7 +227,7 @@
               <div class="list-col col-operation">操作</div>
             </div>
             <div class="list-body">
-              <div class="list-row" v-for="(key, index) in apiKeyList" :key="index">
+              <div class="list-row" v-for="(key, index) in apiKeyList" :key="key.id || index">
                 <div class="list-col col-name">{{ key.keyName || '未命名' }}</div>
                 <div class="list-col col-access-key">{{ maskAccessKey(key.accessKey) }}</div>
                 <div class="list-col col-status">
@@ -238,7 +237,7 @@
                 </div>
                 <div class="list-col col-create-time">{{ formatTime(key.createTime) }}</div>
                 <div class="list-col col-expire-time">
-                  {{ key.expireDays === 0 ? '永久有效' : formatTime(key.expireTime) }}
+                  {{ key.expireDays === 0 ? '永久有效' : (key.expireTime ? formatTime(key.expireTime) : '已过期') }}
                 </div>
                 <div class="list-col col-operation">
                   <button
@@ -297,7 +296,10 @@ export default {
     const loading = ref(false);
     const generating = ref(false); // 密钥生成中状态
 
-    // 个人信息表单 - 已移除userId字段
+    // 存储当前用户ID（从个人信息接口获取）
+    const currentUserId = ref(null);
+
+    // 个人信息表单
     const userInfoForm = reactive({
       username: '',
       phone: '',
@@ -311,8 +313,6 @@ export default {
       newPassword: '',
       confirmPassword: ''
     });
-
-    // 移除存储配置相关代码
 
     // API密钥相关
     const apiKeyForm = reactive({
@@ -334,11 +334,11 @@ export default {
           method: 'get',
           timeout: 10000
         });
-        // 赋值时排除userId，仅赋值需要的字段
-        const {username, phone, email, avatar} = userRes.data;
-        Object.assign(userInfoForm, {username, phone, email, avatar});
-
-        // 移除存储配置相关请求
+        // 解构获取用户ID和其他信息
+        const {name, phone, email, avatar, id} = userRes.data;
+        Object.assign(userInfoForm, {name, phone, email, avatar});
+        // 存储用户ID
+        currentUserId.value = id;
 
         // 加载API密钥列表
         await loadApiKeyList();
@@ -361,34 +361,65 @@ export default {
     // 加载API密钥列表
     const loadApiKeyList = async () => {
       try {
+        loading.value = true;
+
+        // 如果用户ID不存在，不请求列表
+        if (!currentUserId.value) {
+          apiKeyList.value = [];
+          ElMessage.warning('用户信息未加载完成，无法获取密钥列表');
+          return;
+        }
+
         const res = await request({
           url: '/api/user/api-key/list',
           method: 'get',
+          params: {
+            userId: currentUserId.value // 可选：如果列表接口也需要用户ID过滤
+          },
           timeout: 10000
         });
-        apiKeyList.value = res.data || [];
+        // 确保返回的数据是数组格式
+        apiKeyList.value = Array.isArray(res.data) ? res.data : [];
       } catch (error) {
         console.error('加载API密钥列表失败：', error);
         ElMessage.error('加载API密钥列表失败，请重试');
+        apiKeyList.value = [];
+      } finally {
+        loading.value = false;
       }
     };
 
     // 生成API密钥
     const generateApiKey = async () => {
-      if (!apiKeyForm.keyName) {
-        ElMessage.warning('请输入密钥名称');
+      // 1. 校验用户ID是否存在
+      if (!currentUserId.value) {
+        ElMessage.error('用户信息未加载完成，请刷新页面重试');
+        return;
+      }
+
+      // 2. 表单校验
+      if (apiKeyForm.keyName && apiKeyForm.keyName.length > 100) {
+        ElMessage.warning('密钥名称长度不能超过100个字符');
         return;
       }
 
       try {
         generating.value = true;
+        // 3. 构造符合后端DTO要求的请求参数
+        const requestData = {
+          userId: currentUserId.value, // 必传参数
+          keyName: apiKeyForm.keyName.trim() || '', // 可选，空字符串使用后端默认值
+          expireDays: Number(apiKeyForm.expireDays) // 确保是数字类型
+        };
+
         const res = await request({
           url: '/api/user/api-key/generate',
           method: 'post',
-          data: apiKeyForm,
+          data: requestData,
           timeout: 15000
         });
-        if (res.code === 200) {
+
+        if (res && res.code === 200 && res.data) {
           newApiKey.value = res.data;
           showKeyModal.value = true;
           // 清空表单
@@ -396,12 +427,18 @@ export default {
           apiKeyForm.expireDays = 30;
           // 重新加载列表
           await loadApiKeyList();
+          ElMessage.success('API密钥生成成功');
         } else {
-          ElMessage.error(res.msg || '生成API密钥失败');
+          ElMessage.error(res?.msg || '生成API密钥失败');
         }
       } catch (error) {
         console.error('生成API密钥失败：', error);
-        ElMessage.error('生成失败，请重试');
+        // 处理后端参数校验错误
+        if (error.response?.data?.msg) {
+          ElMessage.error(error.response.data.msg);
+        } else {
+          ElMessage.error('生成失败，请检查网络或联系管理员');
+        }
       } finally {
         generating.value = false;
       }
@@ -409,30 +446,73 @@ export default {
 
     // 复制到剪贴板
     const copyToClipboard = (text) => {
-      navigator.clipboard.writeText(text).then(() => {
-        ElMessage.success('复制成功！');
-      }).catch(() => {
-        // 降级方案：创建临时input复制
-        const input = document.createElement('input');
-        input.value = text;
-        document.body.appendChild(input);
-        input.select();
-        document.execCommand('copy');
-        document.body.removeChild(input);
-        ElMessage.success('复制成功！');
-      });
+      if (!text) {
+        ElMessage.warning('无内容可复制');
+        return;
+      }
+
+      // 现代浏览器剪贴板API
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+          ElMessage.success('复制成功！');
+        }).catch(() => {
+          fallbackCopyTextToClipboard(text);
+        });
+      } else {
+        fallbackCopyTextToClipboard(text);
+      }
+    };
+
+    // 剪贴板复制降级方案
+    const fallbackCopyTextToClipboard = (text) => {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      // 防止滚动到页面底部
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      try {
+        const successful = document.execCommand('copy');
+        const msg = successful ? '复制成功！' : '复制失败，请手动复制';
+        ElMessage.success(msg);
+      } catch (err) {
+        console.error('Fallback: 无法复制文本: ', err);
+        ElMessage.error('复制失败，请手动复制');
+      }
+
+      document.body.removeChild(textArea);
     };
 
     // 掩码处理AccessKey（只显示前8位和后4位）
     const maskAccessKey = (accessKey) => {
       if (!accessKey) return '';
+      if (accessKey.length <= 12) return accessKey; // 防止短密钥显示异常
       return accessKey.substring(0, 8) + '****************' + accessKey.substring(accessKey.length - 4);
     };
 
     // 格式化时间
     const formatTime = (timestamp) => {
       if (!timestamp) return '未知时间';
-      const date = new Date(timestamp);
+
+      let date;
+      // 兼容时间戳和字符串格式
+      if (typeof timestamp === 'number') {
+        // 处理秒级时间戳
+        date = new Date(timestamp.toString().length === 10 ? timestamp * 1000 : timestamp);
+      } else {
+        date = new Date(timestamp);
+      }
+
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) {
+        return '未知时间';
+      }
+
       return date.toLocaleString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
@@ -445,13 +525,23 @@ export default {
 
     // 切换密钥状态（启用/禁用）
     const toggleKeyStatus = async (keyId) => {
+      if (!keyId) {
+        ElMessage.warning('密钥ID不存在，操作失败');
+        return;
+      }
+
       try {
         loading.value = true;
         const res = await request({
           url: `/api/user/api-key/toggle/${keyId}`,
           method: 'post',
+          // 如果需要传递用户ID，可添加参数
+          data: {
+            userId: currentUserId.value
+          },
           timeout: 10000
         });
+
         if (res.code === 200) {
           ElMessage.success('密钥状态修改成功');
           await loadApiKeyList();
@@ -468,72 +558,100 @@ export default {
 
     // 重置API密钥
     const resetApiKey = async (keyId) => {
-      ElMessageBox.confirm(
-          '重置密钥将生成新的Secret Key，原密钥将立即失效，是否确认？',
-          '确认重置',
-          {
-            confirmButtonText: '确认',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
-      ).then(async () => {
-        try {
-          loading.value = true;
-          const res = await request({
-            url: `/api/user/api-key/reset/${keyId}`,
-            method: 'post',
-            timeout: 10000
-          });
-          if (res.code === 200) {
-            ElMessage.success('密钥重置成功，新的Secret Key已发送至你的邮箱');
-            await loadApiKeyList();
-          } else {
-            ElMessage.error(res.msg || '重置失败');
-          }
-        } catch (error) {
+      if (!keyId) {
+        ElMessage.warning('密钥ID不存在，操作失败');
+        return;
+      }
+
+      try {
+        await ElMessageBox.confirm(
+            '重置密钥将生成新的Secret Key，原密钥将立即失效，是否确认？',
+            '确认重置',
+            {
+              confirmButtonText: '确认',
+              cancelButtonText: '取消',
+              type: 'warning',
+              confirmButtonClass: 'el-button--warning'
+            }
+        );
+
+        loading.value = true;
+        const res = await request({
+          url: `/api/user/api-key/reset/${keyId}`,
+          method: 'post',
+          // 如果需要传递用户ID，可添加参数
+          data: {
+            userId: currentUserId.value
+          },
+          timeout: 10000
+        });
+
+        if (res.code === 200) {
+          ElMessage.success('密钥重置成功，新的Secret Key已发送至你的邮箱');
+          await loadApiKeyList();
+        } else {
+          ElMessage.error(res.msg || '重置失败');
+        }
+      } catch (error) {
+        // 取消操作时不报错
+        if (error !== 'cancel') {
           console.error('重置密钥失败：', error);
           ElMessage.error('重置失败，请重试');
-        } finally {
-          loading.value = false;
+        } else {
+          ElMessage.info('已取消重置');
         }
-      }).catch(() => {
-        ElMessage.info('已取消重置');
-      });
+      } finally {
+        loading.value = false;
+      }
     };
 
     // 删除API密钥
     const deleteApiKey = async (keyId) => {
-      ElMessageBox.confirm(
-          '删除密钥后将无法恢复，相关接口调用将失效，是否确认删除？',
-          '确认删除',
-          {
-            confirmButtonText: '删除',
-            cancelButtonText: '取消',
-            type: 'error'
-          }
-      ).then(async () => {
-        try {
-          loading.value = true;
-          const res = await request({
-            url: `/api/user/api-key/delete/${keyId}`,
-            method: 'post',
-            timeout: 10000
-          });
-          if (res.code === 200) {
-            ElMessage.success('密钥删除成功');
-            await loadApiKeyList();
-          } else {
-            ElMessage.error(res.msg || '删除失败');
-          }
-        } catch (error) {
+      if (!keyId) {
+        ElMessage.warning('密钥ID不存在，操作失败');
+        return;
+      }
+
+      try {
+        await ElMessageBox.confirm(
+            '删除密钥后将无法恢复，相关接口调用将失效，是否确认删除？',
+            '确认删除',
+            {
+              confirmButtonText: '删除',
+              cancelButtonText: '取消',
+              type: 'error',
+              dangerMode: true
+            }
+        );
+
+        loading.value = true;
+        const res = await request({
+          url: `/api/user/api-key/delete/${keyId}`,
+          method: 'post',
+          // 如果需要传递用户ID，可添加参数
+          data: {
+            userId: currentUserId.value
+          },
+          timeout: 10000
+        });
+
+        if (res.code === 200) {
+          ElMessage.success('密钥删除成功');
+          await loadApiKeyList();
+        } else {
+          ElMessage.error(res.msg || '删除失败');
+        }
+      } catch (error) {
+        // 取消操作时不报错
+        if (error !== 'cancel') {
           console.error('删除密钥失败：', error);
           ElMessage.error('删除失败，请重试');
-        } finally {
-          loading.value = false;
+        } else {
+          ElMessage.info('已取消删除');
         }
-      }).catch(() => {
-        ElMessage.info('已取消删除');
-      });
+      } finally {
+        loading.value = false;
+      }
     };
 
     // 头像上传处理
@@ -557,6 +675,10 @@ export default {
       // 构建FormData上传
       const formData = new FormData();
       formData.append('file', file);
+      // 如果需要关联用户ID
+      if (currentUserId.value) {
+        formData.append('userId', currentUserId.value);
+      }
 
       request({
         url: '/api/upload/avatar',
@@ -567,13 +689,18 @@ export default {
         },
         timeout: 15000
       }).then(res => {
-        userInfoForm.avatar = res.data.url;
-        ElMessage.success('头像上传成功！');
+        if (res.code === 200 && res.data?.url) {
+          userInfoForm.avatar = res.data.url;
+          ElMessage.success('头像上传成功！');
+        } else {
+          ElMessage.error('头像上传失败：' + (res.msg || '服务器返回异常'));
+        }
         // 清空input值，支持重复上传同一文件
         e.target.value = '';
       }).catch(error => {
         console.error('头像上传失败：', error);
         ElMessage.error('头像上传失败，请重试');
+        e.target.value = '';
       });
     };
 
@@ -595,10 +722,16 @@ export default {
 
       try {
         loading.value = true;
+        // 构造提交数据，包含用户ID
+        const submitData = {
+          id: currentUserId.value,
+          ...userInfoForm
+        };
+
         const res = await request({
           url: '/api/user/update',
           method: 'post',
-          data: userInfoForm,
+          data: submitData,
           timeout: 10000
         });
         if (res.code === 200) {
@@ -632,10 +765,16 @@ export default {
 
       try {
         loading.value = true;
+        // 构造提交数据，包含用户ID
+        const submitData = {
+          userId: currentUserId.value,
+          ...passwordForm
+        };
+
         const res = await request({
           url: '/api/user/change-password',
           method: 'post',
-          data: passwordForm,
+          data: submitData,
           timeout: 10000
         });
         if (res.code === 200) {
@@ -887,8 +1026,6 @@ export default {
   background-color: #409eff;
   color: #ffffff;
 }
-
-/* 移除存储配置相关样式 */
 
 /* 表单操作按钮 */
 .form-actions {
