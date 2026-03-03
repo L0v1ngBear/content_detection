@@ -558,7 +558,7 @@ const initWebSocket = () => {
   // 构建连接地址
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = "localhost:8080";
-  wsUrl.value = `${protocol}//${host}/ai-picture/result/${currentUserId.value}`;
+  wsUrl.value = `${protocol}//${host}/ai/result/${currentUserId.value}`;
   console.log('开始连接WebSocket:', wsUrl.value);
 
   try {

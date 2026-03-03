@@ -518,7 +518,7 @@ export default {
 
         try {
           const res = await request({
-            url: '/review/picture/result',
+            url: '/review/result',
             method: 'get',
             params: { taskId: fileItem.taskId },
             timeout: 5000
