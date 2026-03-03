@@ -67,8 +67,10 @@ minio:
     accessKey: CLF.04
     secretKey: chaojimali.25
     bucketName:
+        videoBucket: video-bucket
         defaultBucket: images-bucket
         avatarBucket: avatar-bucket
+        chunkBucket: video-chunks
     redisKey: "user_images:"
 mybatis-plus:
     configuration:
@@ -98,6 +100,6 @@ scheduled:
     syn:
         pic: 0 0 2 1 * ?
 yolo:
-    apiUrl: http://localhost:8000/classify
-    normal: 0.333
+    imageUrl: http://localhost:8000/internal/classify/image
+    videoUrl: http://localhost:8000/internal/classify/video
 

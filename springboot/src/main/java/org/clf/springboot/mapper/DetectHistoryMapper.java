@@ -7,8 +7,8 @@ import org.clf.springboot.entity.DetectHistory;
 
 public interface DetectHistoryMapper extends BaseMapper<DetectHistory> {
 
-    @Select("SELECT * FROM detect_history WHERE object_id = #{imageId} and user_id = #{userId}")
-    DetectHistory selectByImageId(String imageId, Long userId);
+    @Select("SELECT * FROM detect_history WHERE object_id = #{objectId} and user_id = #{userId}")
+    DetectHistory selectByObjectId(String objectId, Long userId);
 
     @Select("SELECT COUNT(1) FROM detect_history WHERE object_id = #{imageId}")
     int existsByImageId(String imageId);

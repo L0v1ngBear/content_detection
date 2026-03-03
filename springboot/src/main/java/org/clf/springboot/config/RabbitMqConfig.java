@@ -17,9 +17,9 @@ public class RabbitMqConfig {
 
     private final Logger logger = LoggerFactory.getLogger(RabbitMqConfig.class);
     // 1. 业务队列相关
-    public static final String BUSINESS_QUEUE_NAME = "picture.queue"; // 业务队列（处理图片审核的队列）
-    public static final String BUSINESS_EXCHANGE_NAME = "picture.exchange"; // 业务交换机
-    public static final String BUSINESS_ROUTING_KEY = "picture.routing.key"; // 业务路由键
+    public static final String BUSINESS_QUEUE_NAME = "business.queue"; // 业务队列（处理图片审核的队列）
+    public static final String BUSINESS_EXCHANGE_NAME = "business.exchange"; // 业务交换机
+    public static final String BUSINESS_ROUTING_KEY = "business.routing.key"; // 业务路由键
 
     // 2. 死信队列相关
     public static final String DEAD_LETTER_QUEUE_NAME = "picture.dlq.queue"; // 死信队列
@@ -130,5 +130,4 @@ public class RabbitMqConfig {
             }
         };
     }
-
 }

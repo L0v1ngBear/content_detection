@@ -31,20 +31,17 @@ import java.io.IOException;
 @Component
 public class RabbitConsumerListener {
 
-    @Value("${yolo.apiUrl}")
-    private String YOLO_API_URL;
+    @Value("${yolo.imageUrl}")
+    private String IMAGE_YOLO_API_URL;
+
+    @Value("${yolo.videoUrl}")
+    private String VIDEO_YOLO_API_URL;
 
     @Value("${spring.rabbitmq.retry_count}")
     private int RETRY_COUNT;
 
-    @Value("${yolo.normal}")
-    private double NORMAL_LEVEL;
-
     @Resource
     private DetectHistoryMapper detectHistoryMapper;
-
-    @Resource
-    private ValidationUtils validationUtils;
 
     @Resource
     private RabbitTemplate rabbitTemplate;
@@ -72,30 +69,29 @@ public class RabbitConsumerListener {
     @Resource
     private MsgMapper msgMapper;
 
-    @RabbitListener(queues = "picture.queue")
-    public void pictureReview(DetectHistory detectHistory,
+    @RabbitListener(queues = "business.queue")
+    public void businessReview(DetectHistory detectHistory,
                               Message message,
                               Channel channel,
                               @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
-        String imageId = detectHistory.getObjectId();
-        String imageUrl = detectHistory.getPresignedUrl();
+        String proId = detectHistory.getObjectId();
+        String proUrl = detectHistory.getPresignedUrl();
         String fileName = detectHistory.getFileName();
         Long userId = detectHistory.getUserId();
-        logger.info("开始处理图片审核任务，图片ID：{}，MinIO链接：{}", imageId, imageUrl);
-
-        boolean isAck = false;
+        String detectType = detectHistory.getDetectType();
+        logger.info("开始处理审核任务，ID：{}，MinIO链接：{}", proId, proUrl);
 
         try {
-            JSONObject yoloResult = classifyImageByUrl(imageUrl, imageId);
+            JSONObject yoloResult = classifyByUrl(proUrl, proId, detectType);
             if (yoloResult == null) {
-                throw new RuntimeException("YOLO结果调用失败，图片id: " + imageId);
+                throw new RuntimeException("YOLO结果调用失败，id: " + proId);
             }
 
             int code = yoloResult.getIntValue("code");
             if (code != 200) {
                 throw new RuntimeException(String.format(
-                        "YOLO审核失败，图片ID：%s，错误码：%d，错误信息：%s",
-                        imageId, code, yoloResult.getString("msg")));
+                        "YOLO审核失败，ID：%s，错误码：%d，错误信息：%s",
+                        proId, code, yoloResult.getString("msg")));
             }
 
             JSONObject data = yoloResult.getJSONObject("data");
@@ -105,8 +101,8 @@ public class RabbitConsumerListener {
             double adultProb = data.getJSONObject("detail_probs").getDoubleValue("Adult");
             double violentProb = data.getJSONObject("detail_probs").getDoubleValue("Violent");
 
-            logger.info("图片{} YOLO审核完成：最终分类={}（概率{}%），Normal概率{}%，Adult概率{}%，Violent概率{}%",
-                    imageId, finalClass, finalProb, normalProb, adultProb, violentProb);
+            logger.info("项目{} YOLO审核完成：最终分类={}（概率{}%），Normal概率{}%，Adult概率{}%，Violent概率{}%",
+                    proId, finalClass, finalProb, normalProb, adultProb, violentProb);
 
             detectHistory.setDetectTime(new Date());
             /**
@@ -117,14 +113,14 @@ public class RabbitConsumerListener {
             detectHistory.setConfidence(finalProb / 100);
 
             detectHistoryMapper.updateStatusById(detectHistory);
-            logger.info("图片入库成功，图片id{}", imageId);
+            logger.info("入库成功，项目id{}", proId);
 
             // 推送消息到websocket
             Msg msg = new Msg();
             msg.setType("DETECT");
             msg.setUserId(String.valueOf(detectHistory.getUserId()));
             String classType = NORMAL_CLASSES.get(finalClass);
-            String content = String.format("图片AI检测完成：检测图片名称:%s，类型:%s，违规概率:%s%%", fileName, classType, finalProb);
+            String content = String.format("项目AI检测完成：检测项目名称:%s，类型:%s，违规概率:%s%%", fileName, classType, finalProb);
             msg.setContent(content);
             msg.setIsRead(0);
             msg.setCreateTime(LocalDateTime.now());
@@ -224,13 +220,13 @@ public class RabbitConsumerListener {
         }
     }
 
-    private JSONObject classifyImageByUrl(String imageUrl, String imageId) {
-        if (imageUrl == null || !imageUrl.startsWith("http")) {
-            logger.error("无效的MinIO图片链接：{}", imageUrl);
+    private JSONObject classifyByUrl(String Url, String imageId, String detectType) {
+        if (Url == null || !Url.startsWith("http")) {
+            logger.error("无效的MinIO链接：{}", Url);
             return null;
         }
         JSONObject requestBody = new JSONObject();
-        requestBody.put("image_url", imageUrl);
+        requestBody.put("url", Url);
 
         RequestBody body = RequestBody.create(
                 MediaType.parse("application/json; charset=utf-8"),
@@ -238,7 +234,7 @@ public class RabbitConsumerListener {
         );
 
         Request request = new Request.Builder()
-                .url(YOLO_API_URL)
+                .url(detectType.equals("image") ? IMAGE_YOLO_API_URL : VIDEO_YOLO_API_URL)
                 .post(body)
                 .addHeader("Content-Type", "application/json")
                 .build();
@@ -247,7 +243,7 @@ public class RabbitConsumerListener {
         try (Response response = okHttpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 solveYoloException(imageId);
-                logger.error("YOLO接口调用失败，状态码：{}，图片链接：{}", response.code(), imageUrl);
+                logger.error("YOLO接口调用失败，状态码：{}，链接：{}", response.code(), Url);
                 if (response.body() != null) {
                     logger.error("YOLO接口错误响应：{}", response.body().string());
                 }
@@ -260,7 +256,7 @@ public class RabbitConsumerListener {
 
         } catch (IOException e) {
             solveYoloException(imageId);
-            logger.error("调用YOLO接口IO异常，图片链接：{}", imageUrl, e);
+            logger.error("调用YOLO接口IO异常，链接：{}", Url, e);
             return null;
         }
     }

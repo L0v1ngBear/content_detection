@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-@ServerEndpoint("/ai-picture/result/{userId}")
+@ServerEndpoint("/ai/result/{userId}")
 @Component
 public class ImageResultWebSocket {
 

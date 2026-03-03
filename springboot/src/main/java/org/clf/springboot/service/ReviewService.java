@@ -34,6 +34,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -56,6 +57,7 @@ public class ReviewService{
     private static final int SHARED_COUNT = 16;
     private static final String REDIS_KEY_PREFIX = "stat_";
     private static final String STAT_TYPE_PICTURE_REVIEW = "picture_review_count";
+    private static final String STAT_TYPE_VIDEO_REVIEW = "video_review_count";
     private static final long REDIS_KEY_EXPIRE_SECONDS = 32 * 24 * 3600;
 
     @Value("${minio.redisKey}")
@@ -69,12 +71,6 @@ public class ReviewService{
 
     @Resource
     private RabbitTemplate rabbitTemplate;
-
-    @Resource
-    private TokenUtils tokenUtils;
-
-    @Resource
-    private RedisUtils redisUtils;
 
     @Resource
     private DetectHistoryMapper detectHistoryMapper;
@@ -104,7 +100,7 @@ public class ReviewService{
             // 单张图片详情
             String imageDetailKey = redisPrefix + userId + imageId;
             // 封装图片信息
-            DetectHistory imageInfo = buildImageInfoMap(preSignedUrl, objectName, imageId, userId, originalName);
+            DetectHistory imageInfo = buildImageInfoMap(preSignedUrl, objectName, imageId, userId, originalName, "image");
 
             // 发送到消息队列，存入mysql
             rabbitTemplate.convertAndSend(RabbitMqConfig.MYSQL_EXCHANGE_NAME,
@@ -143,44 +139,53 @@ public class ReviewService{
         }
     }
 
-    private DetectHistory buildImageInfoMap(String preSignedUrl, String objectName, String imageId, Long userId, String originalName) {
+    private DetectHistory buildImageInfoMap(String preSignedUrl, String objectName, String imageId, Long userId, String originalName, String detectType) {
         DetectHistory dto = new DetectHistory();
         dto.setStatus(1);
         dto.setUserId(userId);
         dto.setObjectName(objectName);
-        dto.setDetectType("image");
+        dto.setDetectType(detectType);
         dto.setPresignedUrl(preSignedUrl);
         dto.setObjectId(imageId);
         dto.setFileName(originalName);
         return dto;
     }
-
     private void addImageId(String imageListKey, String imageId) {
         // 存储图片ID，score为创建时间戳
         stringRedisTemplate.opsForZSet().add(imageListKey, imageId, System.currentTimeMillis());
         stringRedisTemplate.expire(imageListKey, REDIS_EXPIRE_TIME + 1, TimeUnit.DAYS);
     }
 
-    public String videoView(MultipartFile file) {
-        try {
-            if (file.isEmpty()) {
-                throw new CustomException("文件不存在");
-            }
-            // TODO 完善视频审核
-            return file.getOriginalFilename();
-        } catch (Exception e) {
-            throw new CustomException(500, "系统异常");
-        }
+    public String videoReview(String objectName, String fileName) {
+
+        String videoUrl = minIOUtils.getPresignedUrl("video-bucket",objectName,60, TimeUnit.SECONDS);
+        Long userId = UserContextHolder.getUserId();
+        String videoId = UUID.randomUUID().toString().replace("-", "");
+        DetectHistory dto = buildImageInfoMap(videoUrl, objectName, videoId, userId, fileName, "video");
+        rabbitTemplate.convertAndSend(RabbitMqConfig.MYSQL_EXCHANGE_NAME,
+                RabbitMqConfig.MYSQL_ROUTING_KEY,
+                dto,
+                new CorrelationData(UUID.randomUUID().toString()));
+
+        // TODO 消息队列发送到 视频审核队列
+        rabbitTemplate.convertAndSend(RabbitMqConfig.BUSINESS_EXCHANGE_NAME,
+                RabbitMqConfig.BUSINESS_ROUTING_KEY,
+                dto,
+                new CorrelationData(UUID.randomUUID().toString().replace("-", "")));
+
+        stringRedisTemplate.opsForValue().increment(NOW_COUNT);
+
+        return videoId;
     }
 
-    public void savePicReview(Long userId) {
+    public void savePicReview(Long userId, String detectType) {
         try {
             if (userId == null) {
                 throw new CustomException(ResultCodeEnum.USER_NOT_LOGIN);
             }
             String currentMonth = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
             int sharedIndex = Math.abs(userId.hashCode() % SHARED_COUNT);
-            String redisKey = String.format("%s%s_%s_%d", REDIS_KEY_PREFIX, STAT_TYPE_PICTURE_REVIEW, currentMonth, sharedIndex);
+            String redisKey = String.format("%s%s_%s_%d", REDIS_KEY_PREFIX, Objects.equals(detectType, "image") ? STAT_TYPE_PICTURE_REVIEW : STAT_TYPE_VIDEO_REVIEW, currentMonth, sharedIndex);
             String redisField = userId.toString();
 
             stringRedisTemplate.opsForHash().increment(redisKey, redisField, 1);
@@ -194,8 +199,8 @@ public class ReviewService{
         }
     }
 
-    public PictureResponseDTO getPictureResult(String imageId, Long userId) {
-        DetectHistory detectHistory = detectHistoryMapper.selectByImageId(imageId, userId);
+    public PictureResponseDTO getResult(String objectId, Long userId) {
+        DetectHistory detectHistory = detectHistoryMapper.selectByObjectId(objectId, userId);
         PictureResponseDTO resDto = new PictureResponseDTO();
         resDto.setTaskId(detectHistory.getObjectId());
         resDto.setStatus(detectHistory.getStatus());
