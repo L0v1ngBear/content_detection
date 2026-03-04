@@ -168,5 +168,9 @@ public class WebService {
         });
         return responsePage;
     }
+
+    public void setMsgReadById(Integer id) {
+        msgMapper.setMsgReadById(id);
+    }
 }
 

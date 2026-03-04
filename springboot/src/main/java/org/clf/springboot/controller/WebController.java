@@ -125,6 +125,14 @@ public class WebController {
         }
     }
 
+    @PostMapping("/msg/read/{id}")
+    public Result readMsg(@PathVariable Integer id) {
+        if (id != null) {
+            webService.setMsgReadById(id);
+            return Result.success();
+        }
+        return Result.error("消息ID不能为空");
+    }
     @GetMapping("/now-count")
     public Result getNowCount() {
         return Result.success(webService.getNowCount());
